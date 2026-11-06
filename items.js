@@ -10,7 +10,28 @@ export const STAMPS = [
 
 const f2 = v => Math.round(v * 100) / 100;
 export const isDom = o => o.tool === 'text' || o.tool === 'note';
-export const resizable = o => o.tool !== 'mark' && o.tool !== 'note';
+export const resizable = o => o.tool !== 'mark' && o.tool !== 'note' && o.tool !== 'wm';
+
+const images = new Map();
+let imageReady = () => {};
+export const onImageReady = fn => { imageReady = fn; };
+function imageOf(src) {
+  let img = images.get(src);
+  if (!img) {
+    img = new Image();
+    img.onload = () => imageReady();
+    img.src = src;
+    images.set(src, img);
+  }
+  return img;
+}
+
+export function wmGeometry(o) {
+  const a = -Math.PI / 4, cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+  const xa = [Math.cos(a), Math.sin(a)], ya = [-Math.sin(a), Math.cos(a)];
+  const lx = -o.tw / 2, ly = o.size * 0.35;
+  return { a, cx, cy, xa, ya, start: [cx + lx * xa[0] + ly * ya[0], cy + lx * xa[1] + ly * ya[1]] };
+}
 
 export function sigStrokes(o) {
   return o.paths.map(({ pts, w }) => ({ w: w * o.w, pts: pts.map(([x, y, p]) => [o.x + x * o.w, o.y + y * o.h, p]) }));
@@ -70,6 +91,10 @@ export function hit(o, x, y, tol, size) {
   if (o.tool === 'pen' || o.tool === 'hl') return o.pts.some((a, i) => dSeg(x, y, a, o.pts[i + 1] || a) < tol + o.w / 2);
   if (o.tool === 'shape' && (o.kind === 'line' || o.kind === 'arrow')) return dSeg(x, y, [o.x1, o.y1], [o.x2, o.y2]) < tol + o.w / 2;
   if (o.tool === 'mark') return o.rects.some(([rx, ry, w, h]) => x > rx - tol && x < rx + w + tol && y > ry - tol && y < ry + h + tol);
+  if (o.tool === 'wm') {
+    const { cx, cy, xa, ya } = wmGeometry(o), dx = x - cx, dy = y - cy;
+    return Math.abs(dx * xa[0] + dy * xa[1]) < o.tw / 2 + tol && Math.abs(dx * ya[0] + dy * ya[1]) < o.size * 0.6 + tol;
+  }
   const [x0, y0, x1, y1] = bbox(o, size);
   return x > x0 - tol && x < x1 + tol && y > y0 - tol && y < y1 + tol;
 }
@@ -124,6 +149,25 @@ export function paint(ctx, o, path) {
       ctx.fillText(o.label, x + w / 2, y + h * 0.52);
       ctx.font = `600 ${h * 0.2}px Helvetica, Arial, sans-serif`;
       ctx.fillText(o.date, x + w / 2, y + h * 0.82);
+      break;
+    }
+    case 'cover': case 'redact':
+      ctx.fillStyle = o.tool === 'redact' ? '#000' : o.color;
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      break;
+    case 'image': {
+      const img = imageOf(o.src);
+      if (img.complete && img.naturalWidth) ctx.drawImage(img, o.x, o.y, o.w, o.h);
+      break;
+    }
+    case 'wm': {
+      const { a, start } = wmGeometry(o);
+      ctx.globalAlpha = o.alpha;
+      ctx.fillStyle = o.color;
+      ctx.font = `700 ${o.size}px Helvetica, Arial, sans-serif`;
+      ctx.translate(...start);
+      ctx.rotate(a);
+      ctx.fillText(o.text, 0, 0);
       break;
     }
   }
@@ -192,6 +236,23 @@ export function exportItem(page, o, E) {
         Rect: [l, b, l + NOTE, b + NOTE], AP: { N: E.noteAp },
         Contents: PDFHexString.fromText(o.text), T: PDFHexString.fromText('PDF Pad')
       })));
+      break;
+    }
+    case 'cover': case 'redact':
+      page.drawSvgPath(svg(rectLines([o.x, o.y, o.w, o.h])) + ' Z', { x: 0, y: 0, color: color(o.tool === 'redact' ? '#000000' : o.color) });
+      break;
+    case 'image': {
+      const [X, Y] = pdf(o.x, o.y + o.h);
+      page.drawImage(E.images.get(o.src), { x: X, y: Y, width: o.w, height: o.h, rotate: E.rotate });
+      break;
+    }
+    case 'wm': {
+      const { start } = wmGeometry(o), [X, Y] = pdf(...start);
+      const safe = [...o.text].map(ch => E.chars.has(ch.codePointAt(0)) ? ch : '?').join('');
+      page.drawText(safe, {
+        x: X, y: Y, size: o.size, font: E.bold, color: color(o.color), opacity: o.alpha,
+        rotate: PDFLib.degrees(E.rotate.angle + 45)
+      });
       break;
     }
   }

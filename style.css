@@ -339,3 +339,23 @@ button.ghost { background: var(--track); margin-top: 10px; font-weight: 600; }
 .shot { padding: 3px; min-width: 0; min-height: 0; border-radius: 8px; flex: none; }
 .shot canvas { display: block; height: 56px; width: auto; background: #fff; border-radius: 3px; }
 .shot.on { box-shadow: 0 0 0 2px #3b82f6; }
+
+.forms { z-index: 1; }
+.field {
+  position: absolute; pointer-events: auto; box-sizing: border-box; margin: 0; padding: 0 2px;
+  border: 0; border-radius: 1px; color: #000; font-family: Helvetica, Arial, sans-serif; line-height: 1.15;
+  background: rgba(37, 99, 235, .09); outline: 1px solid rgba(37, 99, 235, .35);
+  -webkit-user-select: text; user-select: text; resize: none; accent-color: #2563eb;
+}
+.field:focus { background: rgba(37, 99, 235, .16); outline: 1.5px solid #2563eb; }
+.field:disabled { background: transparent; outline: 0; }
+.icon-select { padding: 0; min-width: 44px; justify-content: center; }
+.icon-select.on { color: var(--acc); background: var(--track); }
+#docDlg form { margin: 0; }
+#docDlg .row { margin-top: 18px; justify-content: flex-end; }
+.frow { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 12px; font-size: 14px; }
+.frow input, .frow select {
+  min-width: 0; flex: 0 1 220px; height: 38px; padding: 0 10px; border: 0; border-radius: 10px;
+  font: inherit; font-size: 16px; color: inherit; background: var(--track); -webkit-user-select: text; user-select: text;
+}
+#docFields .hint { white-space: normal; margin: 0; }

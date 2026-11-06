@@ -28,7 +28,7 @@
     <button data-tool="mark" class="icon" aria-label="Evidenzia testo" title="Evidenzia testo"><svg viewBox="0 0 24 24"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><path d="M4 20h16"/></svg></button>
     <button data-tool="text" class="icon" aria-label="Testo" title="Testo"><svg viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></button>
     <button data-tool="note" class="icon" aria-label="Commento" title="Commento"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/></svg></button>
-    <button data-tool="shape" class="icon" aria-label="Forme" title="Forme"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1"/><circle cx="16.5" cy="16.5" r="4.5"/></svg></button>
+    <button data-tool="shape" class="icon" aria-label="Forme e immagini" title="Forme e immagini"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1"/><circle cx="16.5" cy="16.5" r="4.5"/></svg></button>
     <button data-tool="sign" class="icon" aria-label="Firma" title="Firma"><svg viewBox="0 0 24 24"><path d="m21 17-2.16-1.87a.5.5 0 0 0-.84.37v.5a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1c0-2.55-4-3.97-8.5-4a1 1 0 0 0 0 5c4.15 0 4.75-11.3 5.71-13.5a2.5 2.5 0 1 1 3.31 3.28"/><path d="M3 21h18"/></svg></button>
     <button data-tool="stamp" class="icon" aria-label="Timbro" title="Timbro"><svg viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77Z"/><path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13"/></svg></button>
     <button data-tool="eraser" class="icon" aria-label="Gomma" title="Gomma"><svg viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
@@ -36,7 +36,15 @@
   <span class="sep"></span>
   <button id="undo" class="icon" aria-label="Annulla" title="Annulla" disabled><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button id="redo" class="icon" aria-label="Ripeti" title="Ripeti" disabled><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
-  <button id="finger" class="icon" aria-label="Disegna con il dito" title="Disegna con il dito" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+  <label id="moreBtn" class="select-btn icon-select" title="Altro"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+    <select id="moreMenu" aria-label="Altro">
+      <option value="" selected disabled hidden>Altro</option>
+      <option value="numbers">Numeri di pagina…</option>
+      <option value="wm">Filigrana…</option>
+      <option value="header">Intestazione o piè di pagina…</option>
+      <option value="finger">Disegna con il dito: no</option>
+    </select>
+  </label>
   <span class="grow"></span>
   <button id="save" class="primary" disabled><svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></svg><span>Salva</span></button>
 </div>
@@ -103,6 +111,17 @@
   <div id="homeList"></div>
 </section>
 <div id="toast" role="status" hidden></div>
+<input id="imgFile" type="file" accept="image/*" hidden>
+<dialog id="docDlg">
+  <form method="dialog">
+    <p id="docTitle"></p>
+    <div id="docFields"></div>
+    <div class="row">
+      <button value="cancel" formnovalidate>Annulla</button>
+      <button value="ok" class="primary">Applica</button>
+    </div>
+  </form>
+</dialog>
 <section id="scan" hidden>
   <div class="org-bar">
     <button id="scanCancel">Annulla</button>
