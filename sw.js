@@ -1,4 +1,4 @@
-const V = 'pdfpad-3';
+const V = 'pdfpad-4';
 const CORE = [
   './', 'index.html', 'style.css', 'app.js', 'ink.js', 'manifest.webmanifest',
   'lib/pdf.min.js', 'lib/pdf.worker.min.js', 'lib/pdf-lib.min.js',

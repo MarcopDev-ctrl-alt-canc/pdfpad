@@ -70,7 +70,14 @@ button.big { min-height: 52px; padding: 0 30px; font-size: 16px; border-radius: 
 #tools button, #sizes button { min-height: 38px; min-width: 40px; border-radius: 10px; }
 #tools button.on, #sizes button.on { background: var(--raised); color: var(--fg); box-shadow: var(--sh-2); }
 #colors { margin: 0 2px; }
-@media (max-width: 880px) { #save { padding: 0; min-width: 48px; } #save span { display: none; } }
+@media (max-width: 880px) {
+  #save { padding: 0; min-width: 48px; position: sticky; right: 0; }
+  #save span { display: none; }
+  #tools button { min-width: 36px; }
+  #sizes button { min-width: 34px; }
+  .swatch { min-width: 30px; }
+  .sep { margin: 0 3px; }
+}
 .sep { width: 1px; height: 24px; margin: 0 5px; background: var(--line); flex: none; }
 .grow { flex: 1; min-width: 8px; }
 
@@ -105,6 +112,37 @@ main { flex: 1; overflow: auto; position: relative; touch-action: pan-x pan-y; -
 .page { position: relative; flex: none; background: #fff; border-radius: 2px; box-shadow: var(--page); }
 .page canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 2px; }
 .ink { mix-blend-mode: multiply; }
+.annots { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+.annot { position: absolute; pointer-events: auto; touch-action: none; }
+.annot.text {
+  font: 400 14px/1.2 Helvetica, Arial, sans-serif; letter-spacing: 0; white-space: pre;
+  min-width: 2px; min-height: 1.2em; outline: none; -webkit-user-select: text; user-select: text;
+}
+.annot.text.editing { outline: 1.5px dashed var(--acc); outline-offset: 3px; background: rgba(255, 255, 255, .7); caret-color: var(--acc); }
+body[data-tool="text"] .page { cursor: text; }
+body[data-tool="text"] .annot.text:not(.editing),
+body[data-tool="note"] .annot { cursor: move; }
+.annot.note {
+  width: 22px; height: 22px; display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(180deg, #fde68a, #fbbf24); color: #78350f; border-radius: 6px 6px 6px 2px;
+  box-shadow: 0 0 0 .5px rgba(120, 53, 15, .35), 0 1px 2px rgba(0, 0, 0, .2), 0 3px 8px rgba(0, 0, 0, .15);
+}
+.annot.note svg { width: 13px; height: 13px; stroke-width: 2.2; }
+
+#notePop {
+  position: fixed; z-index: 5; width: min(300px, calc(100vw - 16px)); padding: 12px;
+  background: var(--solid); border-radius: 16px; box-shadow: 0 0 0 1px var(--line), var(--sh-3); animation: pop .15s ease-out;
+}
+#notePop[hidden] { display: none; }
+#notePop textarea {
+  display: block; width: 100%; min-height: 104px; resize: vertical; padding: 10px 12px;
+  font: inherit; font-weight: 450; color: inherit; background: var(--track); border: 0; border-radius: 10px; outline: none;
+  -webkit-user-select: text; user-select: text;
+}
+#notePop textarea:focus { box-shadow: 0 0 0 2px var(--ring); }
+#notePop .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+#noteDel { color: var(--acc); }
+#noteDel[hidden] { display: none; }
 
 #empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; }
 #empty[hidden] { display: none; }
