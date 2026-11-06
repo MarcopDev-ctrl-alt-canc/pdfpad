@@ -77,7 +77,18 @@
   <div class="org-bar">
     <button id="homeClose" hidden>Chiudi</button>
     <div class="org-title"><strong>I tuoi documenti</strong></div>
-    <button id="homeOpen" class="primary">Apri PDF</button>
+    <div class="bar-actions">
+      <label class="select-btn create-btn"><svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>Crea</span>
+      <select id="homeCreate" aria-label="Crea nuovo PDF">
+        <option value="" selected disabled hidden>Crea</option>
+        <option value="scan">Scansiona o da foto…</option>
+        <option value="blank">Documento bianco</option>
+        <option value="lined">Documento a righe</option>
+        <option value="grid">Documento a quadretti</option>
+      </select>
+    </label>
+      <button id="homeOpen" class="primary">Apri PDF</button>
+    </div>
   </div>
   <div id="homeEmpty">
     <div class="hero">
@@ -85,12 +96,28 @@
         <h1>PDF Pad</h1>
         <p class="lead">Annota, evidenzia e organizza i tuoi PDF.</p>
         <button id="openBig" class="primary big">Apri un PDF</button>
+        <button id="scanBig" class="big ghost">Scansiona un documento</button>
         <p id="offline" hidden><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Pronta per l'uso offline</p>
     </div>
   </div>
   <div id="homeList"></div>
 </section>
 <div id="toast" role="status" hidden></div>
+<section id="scan" hidden>
+  <div class="org-bar">
+    <button id="scanCancel">Annulla</button>
+    <div class="org-title"><strong>Scansione</strong><span class="hint">Trascina gli angoli sui bordi del foglio</span></div>
+    <button id="scanDone" class="primary" disabled>Crea PDF</button>
+  </div>
+  <div id="scanEmpty"><button id="scanPick" class="primary big">Scatta o scegli le foto</button></div>
+  <div id="scanStage" hidden><canvas id="scanCanvas"></canvas></div>
+  <div id="scanTools" class="org-tools" hidden>
+    <div class="seg" id="scanMode"><button data-mode="doc">Documento</button><button data-mode="gray">Grigi</button><button data-mode="color">Colori</button></div>
+    <div class="seg"><button id="scanRotate">Ruota</button><button id="scanReset">Foto intera</button><button id="scanRemove" class="danger">Elimina</button></div>
+  </div>
+  <div class="scan-foot"><div id="scanStrip"></div><button id="scanAdd" class="add">+ Pagina</button></div>
+  <input id="scanFile" type="file" accept="image/*" multiple hidden>
+</section>
 <section id="org" hidden>
   <div class="org-bar">
     <button id="orgCancel">Annulla</button>

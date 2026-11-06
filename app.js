@@ -4,6 +4,7 @@ import {
   HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, mapItem, paint, inkPath, exportItem, markRects
 } from './items.js';
 import { openOrganizer } from './organize.js';
+import { openScanner, blankPdf } from './create.js';
 import { idb, libList, libAdd, libTouch, libRemove, migrate } from './store.js';
 import { pageIndex, findRects, setMeasure } from './search.js';
 
@@ -831,6 +832,22 @@ renderOpts();
 $('#open').onclick = () => showHome();
 $('#openBig').onclick = $('#homeOpen').onclick = () => $('#file').click();
 $('#homeClose').onclick = () => { $('#home').hidden = true; };
+
+const stamp = () => new Date().toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }).replace(/[/:]/g, '.').replace(',', '');
+async function createDoc(data, name) {
+  await openDoc(await libAdd(data, name));
+}
+function startCreate(kind) {
+  if (kind === 'scan') return openScanner({ done: createDoc });
+  const label = { blank: 'Documento', lined: 'Appunti a righe', grid: 'Appunti a quadretti' }[kind];
+  blankPdf(kind).then(data => createDoc(data, `${label} ${stamp()}.pdf`));
+}
+$('#homeCreate').onchange = e => {
+  const v = e.target.value;
+  e.target.value = '';
+  startCreate(v);
+};
+$('#scanBig').onclick = () => startCreate('scan');
 $('#file').onchange = async e => {
   const files = [...e.target.files];
   e.target.value = '';
