@@ -662,7 +662,10 @@ $('#download').onclick = () => {
   exported();
 };
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(console.error);
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(console.error);
+  navigator.serviceWorker.ready.then(() => { $('#offline').hidden = false; });
+}
 navigator.storage?.persist?.();
 
 (async () => {

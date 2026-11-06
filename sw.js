@@ -1,13 +1,12 @@
-const V = 'pdfpad-4';
-const CORE = [
-  './', 'index.html', 'style.css', 'app.js', 'ink.js', 'manifest.webmanifest',
-  'lib/pdf.min.js', 'lib/pdf.worker.min.js', 'lib/pdf-lib.min.js',
-  'fonts/inter.woff2', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'
-];
+const V = 'pdfpad-5';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(V).then(c => c.addAll(CORE)));
-  self.skipWaiting();
+  e.waitUntil((async () => {
+    const files = await (await fetch('precache.json', { cache: 'no-store' })).json();
+    const c = await caches.open(V);
+    await c.addAll(files.map(f => new Request(f, { cache: 'reload' })));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', e => {
