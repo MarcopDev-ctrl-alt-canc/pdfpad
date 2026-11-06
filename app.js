@@ -4,8 +4,13 @@ import {
   HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, mapItem, paint, inkPath, exportItem, markRects
 } from './items.js';
 import { openOrganizer } from './organize.js';
+import { idb, libList, libAdd, libTouch, libRemove, migrate } from './store.js';
+import { pageIndex, findRects, setMeasure } from './search.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
+const measurer = document.createElement('canvas').getContext('2d');
+measurer.font = '100px Helvetica, Arial, sans-serif';
+setMeasure(s => measurer.measureText(s).width);
 
 const INK = ['#111111', '#1d4ed8', '#dc2626', '#15803d'];
 const COLORS = {
@@ -47,21 +52,16 @@ const placing = () => PLACING.has(st.tool);
 const absUrl = p => new URL(p, location.href).href;
 const today = () => new Date().toLocaleDateString('it-IT');
 
-const dbp = new Promise((ok, ko) => {
-  const r = indexedDB.open('pdfpad', 1);
-  r.onupgradeneeded = () => r.result.createObjectStore('kv');
-  r.onsuccess = () => ok(r.result);
-  r.onerror = () => ko(r.error);
-});
-async function idb(method, ...args) {
-  const db = await dbp;
-  return new Promise((ok, ko) => {
-    const r = db.transaction('kv', method === 'get' ? 'readonly' : 'readwrite').objectStore('kv')[method](...args);
-    r.onsuccess = () => ok(r.result);
-    r.onerror = () => ko(r.error);
-  });
+let curId = null, search = null, toastTimer = 0;
+const saveInk = () => curId && idb('put', { strokes: pages.map(g => g.strokes), dirty }, 'ink:' + curId).catch(console.error);
+
+function toast(text) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 1800);
 }
-const saveInk = () => idb('put', { strokes: pages.map(g => g.strokes), dirty }, 'ink').catch(console.error);
 
 const io = new IntersectionObserver(es => {
   for (const e of es) {
@@ -90,20 +90,25 @@ async function open(data, name, strokes) {
   doc?.destroy();
   doc = d; bytes = data; fileName = name;
   pages = []; undoStack = []; redoStack = []; sel = null;
-  pagesEl.textContent = ''; thumbsEl.textContent = '';
+  closeSearch();
+  pagesEl.textContent = ''; thumbsEl.textContent = ''; $('#outline').textContent = '';
   for (let n = 1; n <= doc.numPages; n++) {
     const p = await doc.getPage(n), vp = p.getViewport({ scale: 1 });
     const el = document.createElement('div');
     el.className = 'page';
     el.dataset.i = n - 1;
-    const c = document.createElement('canvas'), ink = document.createElement('canvas'), layer = document.createElement('div');
+    const c = document.createElement('canvas'), ink = document.createElement('canvas');
+    const layer = document.createElement('div'), hits = document.createElement('div');
     ink.className = 'ink';
     layer.className = 'annots';
-    layer.style.width = vp.width + 'px';
-    layer.style.height = vp.height + 'px';
-    el.append(c, ink, layer);
+    hits.className = 'annots hits';
+    for (const l of [layer, hits]) {
+      l.style.width = vp.width + 'px';
+      l.style.height = vp.height + 'px';
+    }
+    el.append(c, ink, hits, layer);
     pagesEl.append(el);
-    pages.push({ p, vp, el, c, ink, layer, strokes: strokes?.[n - 1] || [], scale: 0, near: false, task: null, words: null, textP: null });
+    pages.push({ p, vp, el, c, ink, layer, hits, strokes: strokes?.[n - 1] || [], scale: 0, near: false, task: null, words: null, textP: null });
   }
   maxW = Math.max(...pages.map(g => g.vp.width));
   viewer.scrollTo(0, 0);
@@ -115,7 +120,7 @@ async function open(data, name, strokes) {
   $('#save').disabled = $('#thumbsBtn').disabled = false;
   $('#orgBtn').hidden = false;
   $('#undo').disabled = $('#redo').disabled = true;
-  if (!thumbsEl.hidden) buildThumbs();
+  if (!$('#side').hidden) buildSide();
   updatePageNum();
   renderOpts();
   return true;
@@ -129,7 +134,7 @@ function layout() {
   for (const g of pages) {
     g.el.style.width = g.vp.width * s + 'px';
     g.el.style.height = g.vp.height * s + 'px';
-    g.layer.style.transform = `scale(${s})`;
+    g.layer.style.transform = g.hits.style.transform = `scale(${s})`;
     g.layer.style.setProperty('--inv', 1 / s);
   }
   pages.filter(g => g.near).forEach(draw);
@@ -320,7 +325,7 @@ pagesEl.addEventListener('pointerdown', e => {
   else if (t === 'shape') live.s = { tool: 'shape', kind: st.kind.shape, color: st.color.shape, w: SIZES.shape[st.size.shape], x1: x, y1: y, x2: x, y2: y };
   else if (t === 'mark') {
     if (!g.words) { loadText(g); live = null; return; }
-    live.s = { tool: 'mark', kind: st.kind.mark, color: st.color.mark, rects: [], text: '' };
+    live.s = { tool: 'mark', kind: st.kind.mark, color: st.kind.mark === 'copy' ? '#60a5fa' : st.color.mark, rects: [], text: '' };
   } else if (t === 'select') selectDown(g, x, y);
   move(e);
 });
@@ -365,6 +370,12 @@ function end(e) {
   if (drag?.id === e.pointerId) return endDrag(e);
   if (live?.id !== e.pointerId) return;
   const { g, s, before } = live;
+  if (s?.kind === 'copy') {
+    live = null;
+    schedule(g);
+    if (s.text) navigator.clipboard?.writeText(s.text).then(() => toast('Testo copiato'), () => toast('Copia non riuscita'));
+    return;
+  }
   const keep = s && (s.pts?.length || s.rects?.length || (s.tool === 'shape' && Math.hypot(s.x2 - s.x1, s.y2 - s.y1) > 3));
   if (keep) g.strokes.push(s);
   live = null;
@@ -626,6 +637,7 @@ function updatePageNum() {
   $('#pageNum').textContent = pages.length ? `${i + 1} / ${pages.length}` : '';
   thumbsEl.querySelector('.cur')?.classList.remove('cur');
   thumbsEl.children[i]?.classList.add('cur');
+  thumbsEl.children[i]?.scrollIntoView?.({ block: 'nearest' });
 }
 viewer.addEventListener('scroll', () => { if (!pnQueued) { pnQueued = true; requestAnimationFrame(updatePageNum); } }, { passive: true });
 
@@ -652,11 +664,50 @@ function buildThumbs() {
   });
 }
 function toggleThumbs() {
-  thumbsEl.hidden = !thumbsEl.hidden;
-  $('#thumbsBtn').classList.toggle('on', !thumbsEl.hidden);
-  if (!thumbsEl.hidden && !thumbsEl.childElementCount) buildThumbs();
+  const side = $('#side');
+  side.hidden = !side.hidden;
+  $('#thumbsBtn').classList.toggle('on', !side.hidden);
+  if (!side.hidden) buildSide();
   updatePageNum();
   if (doc) layout();
+}
+
+function buildSide() {
+  if (!thumbsEl.childElementCount) buildThumbs();
+  if (!$('#outline').childElementCount) buildOutline();
+}
+
+$('#sideTabs').onclick = e => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  for (const x of $('#sideTabs').children) x.classList.toggle('on', x === b);
+  thumbsEl.hidden = b.dataset.tab !== 'pages';
+  $('#outline').hidden = b.dataset.tab !== 'outline';
+};
+
+async function buildOutline() {
+  const box = $('#outline'), d = doc, items = await d.getOutline().catch(() => null);
+  if (d !== doc) return;
+  if (!items?.length) {
+    box.replaceChildren(el('p', { className: 'hint', textContent: 'Questo documento non ha un indice.' }));
+    return;
+  }
+  const list = nodes => el('ul', {}, ...nodes.map(n => el('li', {},
+    el('button', { textContent: n.title || '(senza titolo)', onclick: () => goDest(n.dest) }),
+    ...(n.items?.length ? [list(n.items)] : []))));
+  box.replaceChildren(list(items));
+}
+
+async function goDest(dest) {
+  try {
+    if (typeof dest === 'string') dest = await doc.getDestination(dest);
+    if (!dest) return;
+    const i = typeof dest[0] === 'object' ? await doc.getPageIndex(dest[0]) : dest[0];
+    pages[i]?.el.scrollIntoView({ block: 'start' });
+    if (innerWidth < 700) toggleThumbs();
+  } catch (err) {
+    console.error(err);
+  }
 }
 $('#thumbsBtn').onclick = toggleThumbs;
 
@@ -694,10 +745,11 @@ function kinds(key, list) {
 }
 
 function renderOpts() {
+  if (search) return;
   const t = st.tool, parts = [];
   if (t === 'pen' || t === 'hl') parts.push(swatches(t), sizes(t));
   if (t === 'shape') parts.push(kinds('shape', [['rect', 'Rettangolo', 'rect'], ['ellipse', 'Ellisse', 'ellipse'], ['line', 'Linea', 'line'], ['arrow', 'Freccia', 'arrow']]), swatches('shape'), sizes('shape'));
-  if (t === 'mark') parts.push(kinds('mark', [['hl', 'Evidenzia'], ['under', 'Sottolinea'], ['strike', 'Barra']]), swatches('mark'), hint('Trascina sul testo'));
+  if (t === 'mark') parts.push(kinds('mark', [['hl', 'Evidenzia'], ['under', 'Sottolinea'], ['strike', 'Barra'], ['copy', 'Copia']]), ...(st.kind.mark === 'copy' ? [] : [swatches('mark')]), hint(st.kind.mark === 'copy' ? 'Trascina sul testo da copiare' : 'Trascina sul testo'));
   if (t === 'text') parts.push(swatches('text'), sizes('text'), hint('Tocca la pagina per scrivere'));
   if (t === 'note') parts.push(hint('Tocca la pagina per aggiungere un commento'));
   if (t === 'eraser') parts.push(hint('Passa sopra un elemento per cancellarlo'));
@@ -753,6 +805,7 @@ $('#tools').onclick = e => {
   if (!t) return;
   blurEditing();
   closeNote();
+  closeSearch();
   st.tool = t;
   document.body.dataset.tool = t;
   document.querySelectorAll('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
@@ -775,18 +828,148 @@ addEventListener('keydown', e => {
 });
 renderOpts();
 
-$('#open').onclick = $('#openBig').onclick = () => $('#file').click();
+$('#open').onclick = () => showHome();
+$('#openBig').onclick = $('#homeOpen').onclick = () => $('#file').click();
+$('#homeClose').onclick = () => { $('#home').hidden = true; };
 $('#file').onchange = async e => {
-  const f = e.target.files[0];
+  const files = [...e.target.files];
   e.target.value = '';
-  if (!f) return;
-  if (dirty && !confirm('Le annotazioni non esportate del documento aperto andranno perse. Continuare?')) return;
-  const data = new Uint8Array(await f.arrayBuffer());
-  if (!await open(data, f.name, null)) return;
-  dirty = false;
-  await idb('put', { bytes: data, name: f.name }, 'doc').catch(console.error);
-  saveInk();
+  let first = null;
+  for (const f of files) {
+    const id = await libAdd(new Uint8Array(await f.arrayBuffer()), f.name);
+    first ??= id;
+  }
+  if (first) await openDoc(first);
 };
+
+async function openDoc(id) {
+  blurEditing();
+  closeNote();
+  const d = await idb('get', 'doc:' + id);
+  if (!d) return;
+  $('#home').hidden = true;
+  const ink = await idb('get', 'ink:' + id);
+  if (!await open(d.bytes, d.name, ink?.strokes)) return showHome();
+  curId = id;
+  dirty = !!ink?.dirty;
+  await idb('put', id, 'cur');
+  const entry = (await libList()).find(x => x.id === id);
+  await libTouch(id, { pages: pages.length, ...(entry?.thumb ? {} : { thumb: await thumbOf() }) });
+}
+
+async function thumbOf() {
+  const g = pages[0], k = 180 / g.vp.width, c = document.createElement('canvas');
+  c.width = 180;
+  c.height = Math.round(g.vp.height * k);
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff';
+  x.fillRect(0, 0, c.width, c.height);
+  await g.p.render({ canvasContext: x, viewport: g.p.getViewport({ scale: k }) }).promise;
+  return c.toDataURL('image/jpeg', 0.75);
+}
+
+async function showHome() {
+  blurEditing();
+  closeNote();
+  const list = await libList(), grid = $('#homeList');
+  $('#homeClose').hidden = !doc;
+  $('#homeEmpty').hidden = list.length > 0;
+  grid.hidden = !list.length;
+  grid.replaceChildren(...list.map(x => {
+    const del = el('button', {
+      className: 'icon doc-del', ariaLabel: 'Rimuovi ' + x.name, onclick: async ev => {
+        ev.stopPropagation();
+        if (!confirm(`Rimuovere «${x.name}» e le sue annotazioni da PDF Pad?\nIl file originale non viene toccato.`)) return;
+        await libRemove(x.id);
+        if (x.id === curId) location.reload();
+        else showHome();
+      }
+    });
+    del.innerHTML = svg('x');
+    const img = el('div', { className: 'doc-thumb' });
+    if (x.thumb) img.append(el('img', { src: x.thumb, alt: '' }));
+    return el('button', { className: 'doc' + (x.id === curId ? ' cur' : ''), onclick: () => x.id === curId && doc ? ($('#home').hidden = true) : openDoc(x.id) },
+      img, el('strong', { textContent: x.name.replace(/\.pdf$/i, '') }),
+      el('small', { textContent: [x.pages && `${x.pages} pag.`, new Date(x.opened).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })].filter(Boolean).join(' · ') }),
+      del);
+  }));
+  $('#home').hidden = false;
+}
+
+function hitRects(g, rects, cur) {
+  return rects.map(([x, y, w, h]) => el('div', {
+    className: 'hit' + (cur ? ' cur' : ''),
+    style: `left:${x}px;top:${y}px;width:${w}px;height:${h}px`
+  }));
+}
+
+function renderHits() {
+  for (const g of pages) g.hits.replaceChildren();
+  if (!search) return;
+  search.hits.forEach((h, n) => h.g.hits.append(...hitRects(h.g, h.rects, n === search.cur)));
+  $('#searchCount').textContent = search.q.trim()
+    ? (search.busy ? 'Cerco…' : search.hits.length ? `${search.cur + 1} di ${search.hits.length}` : 'Nessun risultato')
+    : '';
+}
+
+function goHit(n) {
+  if (!search?.hits.length) return;
+  search.cur = (n + search.hits.length) % search.hits.length;
+  renderHits();
+  const { g, rects } = search.hits[search.cur], s = scale();
+  viewer.scrollTo({ top: g.el.offsetTop + rects[0][1] * s - viewer.clientHeight / 3, left: Math.max(0, g.el.offsetLeft + rects[0][0] * s - viewer.clientWidth / 2) });
+}
+
+async function runSearch() {
+  if (!search) return;
+  const q = search.q, run = search.run = {};
+  search.hits = [];
+  search.cur = 0;
+  search.busy = true;
+  renderHits();
+  for (const g of pages) {
+    const words = await loadText(g);
+    if (search?.run !== run) return;
+    g.index ??= pageIndex(words);
+    for (const rects of findRects(words, g.index, q)) search.hits.push({ g, rects });
+  }
+  search.busy = false;
+  renderHits();
+  const midY = viewer.scrollTop;
+  goHit(Math.max(0, search.hits.findIndex(h => h.g.el.offsetTop + h.rects[0][1] * scale() >= midY)));
+}
+
+function openSearch() {
+  if (!doc) return;
+  if (search) return closeSearch();
+  search = { q: '', hits: [], cur: 0 };
+  $('#searchBtn').classList.add('on');
+  let timer = 0;
+  const input = el('input', {
+    type: 'search', placeholder: 'Cerca nel documento', id: 'searchInput', enterKeyHint: 'search',
+    oninput: () => { search.q = input.value; clearTimeout(timer); timer = setTimeout(runSearch, 250); },
+    onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); goHit(search.cur + (e.shiftKey ? -1 : 1)); } if (e.key === 'Escape') closeSearch(); }
+  });
+  const prev = el('button', { className: 'icon', ariaLabel: 'Precedente', onclick: () => goHit(search.cur - 1) });
+  prev.innerHTML = '<svg viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg>';
+  const next = el('button', { className: 'icon', ariaLabel: 'Successivo', onclick: () => goHit(search.cur + 1) });
+  next.innerHTML = '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>';
+  const close = el('button', { textContent: 'Fine', onclick: closeSearch });
+  optsEl.replaceChildren(el('div', { className: 'search' }, input, el('span', { id: 'searchCount', className: 'hint' }), prev, next), close);
+  input.focus();
+}
+
+function closeSearch() {
+  if (!search) return;
+  search = null;
+  $('#searchBtn').classList.remove('on');
+  renderHits();
+  renderOpts();
+}
+$('#searchBtn').onclick = openSearch;
+addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); search ? $('#searchInput').focus() : openSearch(); }
+});
 
 const hex = h => PDFLib.rgb(...[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255));
 
@@ -839,8 +1022,9 @@ function offer(files, main = false) {
 async function applyPages(data, strokes) {
   if (!await open(data, fileName, strokes)) return;
   dirty = true;
-  await idb('put', { bytes: data, name: fileName }, 'doc').catch(console.error);
+  await idb('put', { bytes: data, name: fileName }, 'doc:' + curId).catch(console.error);
   saveInk();
+  await libTouch(curId, { pages: pages.length, thumb: await thumbOf() });
 }
 
 $('#orgBtn').onclick = () => {
@@ -902,12 +1086,12 @@ navigator.storage?.persist?.();
 
 (async () => {
   try {
+    await migrate();
     sigs = await idb('get', 'sigs') || [];
     if (sigs.length) st.sig = 0;
-    const d = await idb('get', 'doc');
-    if (!d) return;
-    const ink = await idb('get', 'ink');
-    if (await open(d.bytes, d.name, ink?.strokes)) dirty = !!ink?.dirty;
+    const cur = await idb('get', 'cur');
+    if (cur) await openDoc(cur);
+    if (!doc) showHome();
   } catch (err) {
     console.error(err);
   }

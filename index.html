@@ -18,7 +18,7 @@
 <header id="top">
 <div id="bar">
   <button id="open" class="icon" aria-label="Apri PDF" title="Apri PDF"><svg viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></button>
-  <input id="file" type="file" accept="application/pdf,.pdf" hidden>
+  <input id="file" type="file" accept="application/pdf,.pdf" multiple hidden>
   <button id="thumbsBtn" class="icon" aria-label="Miniature pagine" title="Miniature pagine" disabled><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
   <span class="sep"></span>
   <div class="seg" id="tools">
@@ -43,18 +43,14 @@
 <div id="opts"></div>
 </header>
 <div id="wrap">
-  <aside id="thumbs" hidden></aside>
+  <aside id="side" hidden>
+    <div class="seg" id="sideTabs"><button data-tab="pages" class="on">Pagine</button><button data-tab="outline">Indice</button></div>
+    <div id="thumbs"></div>
+    <nav id="outline" hidden></nav>
+  </aside>
   <main id="viewer">
     <div id="pages"></div>
-    <div id="empty">
-      <div class="hero">
-        <div class="doc"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg></div>
-        <h1>PDF Pad</h1>
-        <p id="emptyMsg">Annota, evidenzia e organizza i tuoi PDF.</p>
-        <button id="openBig" class="primary big">Apri un PDF</button>
-        <p id="offline" hidden><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Pronta per l'uso offline</p>
-      </div>
-    </div>
+    <div id="empty" hidden><p id="emptyMsg"></p></div>
   </main>
   <div id="hud" hidden>
     <button id="zoomOut" class="icon" aria-label="Riduci" title="Riduci"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
@@ -63,6 +59,7 @@
     <span class="sep"></span>
     <span id="pageNum"></span>
     <span class="sep"></span>
+    <button id="searchBtn" class="icon" aria-label="Cerca" title="Cerca"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
     <button id="orgBtn" class="icon" aria-label="Organizza pagine" title="Organizza pagine" hidden><svg viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></button>
   </div>
 </div>
@@ -76,6 +73,24 @@
     <button id="sigSave" class="primary">Salva firma</button>
   </div>
 </dialog>
+<section id="home" hidden>
+  <div class="org-bar">
+    <button id="homeClose" hidden>Chiudi</button>
+    <div class="org-title"><strong>I tuoi documenti</strong></div>
+    <button id="homeOpen" class="primary">Apri PDF</button>
+  </div>
+  <div id="homeEmpty">
+    <div class="hero">
+        <div class="logo"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg></div>
+        <h1>PDF Pad</h1>
+        <p class="lead">Annota, evidenzia e organizza i tuoi PDF.</p>
+        <button id="openBig" class="primary big">Apri un PDF</button>
+        <p id="offline" hidden><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Pronta per l'uso offline</p>
+    </div>
+  </div>
+  <div id="homeList"></div>
+</section>
+<div id="toast" role="status" hidden></div>
 <section id="org" hidden>
   <div class="org-bar">
     <button id="orgCancel">Annulla</button>

@@ -1,4 +1,5 @@
 import { penPath, hlPath, dSeg } from './ink.js';
+import { charX, charAt } from './search.js';
 
 export const HL_ALPHA = 0.45;
 export const NOTE = 22;
@@ -8,7 +9,6 @@ export const STAMPS = [
 ];
 
 const f2 = v => Math.round(v * 100) / 100;
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 export const isDom = o => o.tool === 'text' || o.tool === 'note';
 export const resizable = o => o.tool !== 'mark' && o.tool !== 'note';
 
@@ -212,11 +212,11 @@ export function markRects(words, ax, ay, bx, by) {
   const rects = [];
   let text = '';
   for (let k = i; k <= j; k++) {
-    const w = words[k], n = w.str.length, cw = w.w / n;
-    const a = k === i ? clamp(Math.round((sx - w.x) / cw), 0, n) : 0;
-    const b = k === j ? clamp(Math.round((ex - w.x) / cw), 0, n) : n;
+    const w = words[k], n = w.str.length;
+    const a = k === i ? charAt(w, sx) : 0;
+    const b = k === j ? charAt(w, ex) : n;
     if (b <= a) continue;
-    const x = w.x + a * cw, wd = (b - a) * cw, str = w.str.slice(a, b), last = rects[rects.length - 1];
+    const x = charX(w, a), wd = charX(w, b) - x, str = w.str.slice(a, b), last = rects[rects.length - 1];
     if (last && Math.abs(last[1] - w.y) < w.h * 0.5 && x >= last[0] - 2) {
       last[2] = Math.max(last[0] + last[2], x + wd) - last[0];
       last[3] = Math.max(last[3], w.h);
