@@ -15,10 +15,10 @@ const measurer = document.createElement('canvas').getContext('2d');
 measurer.font = '100px Helvetica, Arial, sans-serif';
 setMeasure(s => measurer.measureText(s).width);
 
-const INK = ['#111111', '#1d4ed8', '#dc2626', '#15803d'];
+const INK = ['#111111', '#ffffff', '#1d4ed8', '#dc2626', '#15803d'];
 const COLORS = {
   pen: INK, text: INK, shape: INK,
-  hl: ['#fde047', '#86efac', '#f9a8d4', '#93c5fd'],
+  hl: ['#ffff00', '#39ff14', '#ff9f1a', '#ff2bd6'],
   mark: ['#facc15', '#22c55e', '#dc2626', '#2563eb'],
   sign: ['#111111', '#1d4ed8']
 };
