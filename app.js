@@ -4,6 +4,7 @@ import {
   HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, mapItem, paint, inkPath, exportItem, markRects, onImageReady
 } from './items.js';
 import { buildForms, fillPdfForm } from './forms.js';
+import { ocrPages, toWord, toImages } from './convert.js';
 import { openOrganizer } from './organize.js';
 import { openScanner, blankPdf } from './create.js';
 import { idb, libList, libAdd, libTouch, libRemove, migrate } from './store.js';
@@ -58,15 +59,15 @@ const today = () => new Date().toLocaleDateString('it-IT');
 
 let curId = null, search = null, toastTimer = 0;
 let formVals = {};
-const saveInk = () => curId && idb('put', { strokes: pages.map(g => g.strokes), dirty, forms: formVals }, 'ink:' + curId).catch(console.error);
+const saveInk = () => curId && idb('put', { strokes: pages.map(g => g.strokes), dirty, forms: formVals, ocr: pages.map(g => g.ocr || null) }, 'ink:' + curId).catch(console.error);
 onImageReady(() => pages.filter(g => g.near).forEach(schedule));
 
-function toast(text) {
+function toast(text, sticky = false) {
   const t = $('#toast');
   t.textContent = text;
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 1800);
+  if (!sticky) toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
 }
 
 const io = new IntersectionObserver(es => {
@@ -78,7 +79,7 @@ const io = new IntersectionObserver(es => {
   }
 }, { root: viewer, rootMargin: '1200px 0px' });
 
-async function open(data, name, strokes, forms = {}) {
+async function open(data, name, strokes, forms = {}, ocr = []) {
   msgEl.textContent = 'Caricamento…';
   emptyEl.hidden = false;
   let d;
@@ -115,7 +116,7 @@ async function open(data, name, strokes, forms = {}) {
     }
     el.append(c, under, ink, hits, formsEl, layer);
     pagesEl.append(el);
-    pages.push({ p, vp, el, c, under, ink, layer, hits, forms: formsEl, strokes: strokes?.[n - 1] || [], scale: 0, near: false, task: null, words: null, textP: null });
+    pages.push({ p, vp, el, c, under, ink, layer, hits, forms: formsEl, strokes: strokes?.[n - 1] || [], ocr: ocr?.[n - 1] || null, scale: 0, near: false, task: null, words: null, textP: null });
   }
   maxW = Math.max(...pages.map(g => g.vp.width));
   viewer.scrollTo(0, 0);
@@ -191,8 +192,9 @@ function loadText(g) {
       if (t[0] / len < 0.99) continue;
       g.words.push({ str: i.str, x: t[4], y: t[5] - h * 0.8, w: i.width, h });
     }
+    if (!g.words.length && g.ocr) g.words = g.ocr;
     return g.words;
-  }).catch(() => (g.words = []));
+  }).catch(() => (g.words = g.ocr || []));
 }
 
 function inkPath2D(o) {
@@ -919,8 +921,71 @@ $('#moreMenu').onchange = e => {
     return toast(st.finger ? 'Il dito ora disegna' : 'Il dito ora scorre la pagina');
   }
   if (!doc) return toast('Apri prima un documento');
+  if (v === 'ocr') return runOcr();
+  if (v === 'word') return runWord();
+  if (v === 'images') return runImages();
   openDocTool(v);
 };
+
+let busyJob = false;
+async function job(fn) {
+  if (busyJob) return toast('Attendi la fine dell\'operazione in corso');
+  busyJob = true;
+  try {
+    await fn();
+  } catch (err) {
+    console.error(err);
+    toast('Errore: ' + err.message);
+  } finally {
+    busyJob = false;
+  }
+}
+
+async function needOcr() {
+  const list = [];
+  for (const g of pages) if (!(await loadText(g)).length && !g.ocr) list.push(g);
+  return list;
+}
+
+async function ocrList(list) {
+  await ocrPages(list, (n, p) => toast(`Riconoscimento testo: pagina ${n + 1} di ${list.length} · ${Math.round(p * 100)}%`, true));
+  for (const g of list) {
+    g.words = g.ocr;
+    g.index = null;
+    g.textP = Promise.resolve(g.words);
+  }
+  dirty = true;
+  saveInk();
+}
+
+function runOcr() {
+  job(async () => {
+    const list = await needOcr();
+    if (!list.length) return toast('Il documento contiene già testo selezionabile');
+    toast('Preparo l\'OCR…', true);
+    await ocrList(list);
+    const n = list.reduce((s, g) => s + g.ocr.length, 0);
+    toast(`OCR completato: ${n} parole riconosciute. Ora puoi cercare e copiare il testo`);
+  });
+}
+
+function runWord() {
+  job(async () => {
+    const missing = await needOcr();
+    if (missing.length && confirm(`${missing.length} pagine sono scansioni senza testo. Eseguire prima l'OCR per includerne il testo?`)) await ocrList(missing);
+    const data = await toWord(pages, pdfjsLib, n => toast(`Conversione in Word: pagina ${n + 1} di ${pages.length}`, true));
+    toast('Documento Word pronto');
+    offer([new File([data], fileName.replace(/\.pdf$/i, '') + '.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })]);
+  });
+}
+
+function runImages() {
+  job(async () => {
+    const files = await toImages(pages, fileName.replace(/\.pdf$/i, ''), n => toast(`Esporto la pagina ${n + 1} di ${pages.length}`, true));
+    toast('Immagini pronte');
+    offer(files);
+  });
+}
 
 const textWidth = (str, size) => measurer.measureText(str).width * size / 100;
 
@@ -1030,7 +1095,7 @@ async function openDoc(id) {
   if (!d) return;
   $('#home').hidden = true;
   const ink = await idb('get', 'ink:' + id);
-  if (!await open(d.bytes, d.name, ink?.strokes, ink?.forms)) return showHome();
+  if (!await open(d.bytes, d.name, ink?.strokes, ink?.forms, ink?.ocr)) return showHome();
   curId = id;
   dirty = !!ink?.dirty;
   await idb('put', id, 'cur');
@@ -1185,6 +1250,15 @@ async function rasterPage(g, base) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
+function ocrLines(words) {
+  const lines = [];
+  for (const w of [...words].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const l = lines.find(l => Math.abs(l[0].y + l[0].h / 2 - (w.y + w.h / 2)) < Math.max(l[0].h, w.h) * 0.5);
+    l ? l.push(w) : lines.push([w]);
+  }
+  return lines.map(l => l.sort((a, b) => a.x - b.x));
+}
+
 async function bakeDoc(only) {
   const { PDFDocument, StandardFonts, degrees } = PDFLib;
   const out = await PDFDocument.load(bytes);
@@ -1204,7 +1278,7 @@ async function bakeDoc(only) {
   }
   if (!only) fillPdfForm(out, formVals, E.chars);
   for (const [i, g] of pages.entries()) {
-    if (!g.strokes.length || (only && !only.includes(i))) continue;
+    if ((!g.strokes.length && !g.ocr?.length) || (only && !only.includes(i))) continue;
     if (g.strokes.some(o => o.tool === 'redact')) {
       const jpg = await out.embedJpg(await rasterPage(g, E.base));
       out.removePage(i);
@@ -1216,6 +1290,15 @@ async function bakeDoc(only) {
     const [x0, y0] = E.pdf(0, 0), [x1, y1] = E.pdf(1, 0);
     E.rotate = degrees(Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI);
     for (const o of g.strokes) exportItem(page, o, E);
+    for (const line of ocrLines(g.ocr || [])) {
+      const str = [...line.map(w => w.str).join(' ')].map(ch => E.chars.has(ch.codePointAt(0)) ? ch : '?').join('');
+      const first = line[0], last = line[line.length - 1], h = Math.max(...line.map(w => w.h));
+      let size = h * 1.2;
+      const tw = E.font.widthOfTextAtSize(str, size);
+      if (tw > 0) size *= Math.min(2, Math.max(0.3, (last.x + last.w - first.x) / tw));
+      const [X, Y] = E.pdf(first.x, first.y + first.h * 0.85);
+      page.drawText(str, { x: X, y: Y, size, font: E.font, opacity: 0, rotate: E.rotate });
+    }
   }
   return out;
 }
@@ -1227,7 +1310,9 @@ async function buildPdf() {
 
 function offer(files, main = false) {
   ready = { files, main };
-  $('#readyTitle').textContent = files.length > 1 ? `${files.length} PDF pronti` : 'PDF pronto';
+  const single = files[0].name.endsWith('.docx') ? 'Documento Word pronto' : files[0].type.startsWith('image/') ? 'Immagine pronta' : 'PDF pronto';
+  const many = files[0].type.startsWith('image/') ? `${files.length} immagini pronte` : files[0].name.endsWith('.docx') ? `${files.length} file pronti` : `${files.length} PDF pronti`;
+  $('#readyTitle').textContent = files.length > 1 ? many : single;
   $('#share').hidden = !navigator.canShare?.({ files });
   $('#ready').showModal();
 }

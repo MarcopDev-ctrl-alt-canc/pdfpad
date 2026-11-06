@@ -39,10 +39,19 @@
   <label id="moreBtn" class="select-btn icon-select" title="Altro"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
     <select id="moreMenu" aria-label="Altro">
       <option value="" selected disabled hidden>Altro</option>
+      <optgroup label="Converti">
+        <option value="word">Converti in Word</option>
+        <option value="ocr">Riconosci testo (OCR)</option>
+        <option value="images">Esporta pagine come immagini</option>
+      </optgroup>
+      <optgroup label="Aggiungi a tutte le pagine">
       <option value="numbers">Numeri di pagina…</option>
       <option value="wm">Filigrana…</option>
       <option value="header">Intestazione o piè di pagina…</option>
+      </optgroup>
+      <optgroup label="Impostazioni">
       <option value="finger">Disegna con il dito: no</option>
+      </optgroup>
     </select>
   </label>
   <span class="grow"></span>
