@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PDF Pad">
+<meta name="theme-color" content="#f8f8f9">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="style.css">
+<title>PDF Pad</title>
+</head>
+<body>
+<header id="bar">
+  <button id="open">Apri</button>
+  <input id="file" type="file" accept="application/pdf,.pdf" hidden>
+  <button id="thumbsBtn" disabled>Pagine</button>
+  <span class="sep"></span>
+  <div class="group" id="tools">
+    <button data-tool="pen" class="on">Penna</button>
+    <button data-tool="hl">Evidenz.</button>
+    <button data-tool="eraser">Gomma</button>
+  </div>
+  <div class="group" id="colors"></div>
+  <div class="group" id="sizes">
+    <button data-size="0" aria-label="Sottile">S</button>
+    <button data-size="1" aria-label="Medio" class="on">M</button>
+    <button data-size="2" aria-label="Spesso">L</button>
+  </div>
+  <span class="sep"></span>
+  <button id="undo" aria-label="Annulla" disabled>↶</button>
+  <button id="redo" aria-label="Ripeti" disabled>↷</button>
+  <button id="zoomOut" aria-label="Riduci">−</button>
+  <button id="zoomIn" aria-label="Ingrandisci">+</button>
+  <label class="toggle"><input id="finger" type="checkbox">Dito disegna</label>
+  <span class="grow"></span>
+  <span id="pageNum"></span>
+  <button id="save" disabled>Esporta</button>
+</header>
+<div id="wrap">
+  <aside id="thumbs" hidden></aside>
+  <main id="viewer">
+    <div id="pages"></div>
+    <div id="empty">Tocca «Apri» per scegliere un PDF</div>
+  </main>
+</div>
+<dialog id="ready">
+  <p>PDF pronto.</p>
+  <div class="row">
+    <button id="share">Condividi / Salva su File</button>
+    <button id="download">Scarica</button>
+    <form method="dialog"><button>Annulla</button></form>
+  </div>
+</dialog>
+<script src="lib/pdf-lib.min.js" defer></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
