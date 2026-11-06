@@ -62,6 +62,8 @@
     <button id="zoomIn" class="icon" aria-label="Ingrandisci" title="Ingrandisci"><svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
     <span class="sep"></span>
     <span id="pageNum"></span>
+    <span class="sep"></span>
+    <button id="orgBtn" class="icon" aria-label="Organizza pagine" title="Organizza pagine" hidden><svg viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></button>
   </div>
 </div>
 <dialog id="sigDlg">
@@ -74,6 +76,37 @@
     <button id="sigSave" class="primary">Salva firma</button>
   </div>
 </dialog>
+<section id="org" hidden>
+  <div class="org-bar">
+    <button id="orgCancel">Annulla</button>
+    <div class="org-title"><strong>Organizza pagine</strong><span id="orgCount" class="hint"></span></div>
+    <button id="orgDone" class="primary">Fine</button>
+  </div>
+  <div class="org-tools">
+    <div class="seg">
+      <button id="orgAll">Tutte</button>
+      <button id="orgRotate">Ruota</button>
+      <button id="orgDelete" class="danger">Elimina</button>
+    </div>
+    <div class="seg">
+      <label class="select-btn" id="orgInsertLabel"><span>Inserisci</span>
+        <select id="orgInsert" aria-label="Inserisci pagine">
+          <option value="" selected disabled hidden>Inserisci</option>
+          <option value="blank">Pagina bianca</option>
+          <option value="lined">Pagina a righe</option>
+          <option value="grid">Pagina a quadretti</option>
+          <option value="pdf">Pagine da un altro PDF…</option>
+        </select>
+      </label>
+      <button id="orgExtract">Estrai</button>
+      <button id="orgSplit">Dividi</button>
+    </div>
+    <button id="orgUndo" class="icon" aria-label="Annulla modifica" title="Annulla modifica"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+  </div>
+  <p class="org-help hint">Tocca le pagine per selezionarle. Trascina la maniglia per spostarle.</p>
+  <input id="orgFile" type="file" accept="application/pdf,.pdf" multiple hidden>
+  <div id="orgGrid"></div>
+</section>
 <div id="notePop" hidden>
   <textarea id="noteText" placeholder="Scrivi un commento…" aria-label="Commento"></textarea>
   <div class="row">
@@ -83,7 +116,7 @@
   </div>
 </div>
 <dialog id="ready">
-  <p>PDF pronto</p>
+  <p id="readyTitle">PDF pronto</p>
   <small>Tocca «Condividi», poi «Salva su File» e scegli la cartella.</small>
   <div class="row">
     <button id="share" class="primary">Condividi</button>

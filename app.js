@@ -3,6 +3,7 @@ import { penPath } from './ink.js';
 import {
   HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, mapItem, paint, inkPath, exportItem, markRects
 } from './items.js';
+import { openOrganizer } from './organize.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
 
@@ -38,7 +39,7 @@ const st = {
   kind: { shape: 'rect', mark: 'hl' }
 };
 let doc = null, bytes = null, fileName = '', pages = [], maxW = 1, sigs = [];
-let undoStack = [], redoStack = [], dirty = false, live = null, lastPen = 0, readyFile = null;
+let undoStack = [], redoStack = [], dirty = false, live = null, lastPen = 0, ready = null;
 let drag = null, swallow = false, note = null, sel = null;
 const paths = new WeakMap(), objOf = new WeakMap(), sizeOf = new WeakMap();
 const sizeFn = o => sizeOf.get(o);
@@ -112,6 +113,7 @@ async function open(data, name, strokes) {
   emptyEl.hidden = true;
   $('#hud').hidden = false;
   $('#save').disabled = $('#thumbsBtn').disabled = false;
+  $('#orgBtn').hidden = false;
   $('#undo').disabled = $('#redo').disabled = true;
   if (!thumbsEl.hidden) buildThumbs();
   updatePageNum();
@@ -799,7 +801,7 @@ function baselineRatio() {
   return r;
 }
 
-async function buildPdf() {
+async function bakeDoc(only) {
   const { PDFDocument, StandardFonts, degrees } = PDFLib;
   const out = await PDFDocument.load(bytes);
   const font = await out.embedFont(StandardFonts.Helvetica);
@@ -812,16 +814,44 @@ async function buildPdf() {
     ))
   };
   pages.forEach((g, i) => {
-    if (!g.strokes.length) return;
+    if (!g.strokes.length || (only && !only.includes(i))) return;
     const page = out.getPage(i);
     E.pdf = (x, y) => g.vp.convertToPdfPoint(x, y);
     const [x0, y0] = E.pdf(0, 0), [x1, y1] = E.pdf(1, 0);
     E.rotate = degrees(Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI);
     for (const o of g.strokes) exportItem(page, o, E);
   });
-  const name = fileName.replace(/\.pdf$/i, '') + '_annotato.pdf';
-  return new File([await out.save()], name, { type: 'application/pdf' });
+  return out;
 }
+
+async function buildPdf() {
+  const name = fileName.replace(/\.pdf$/i, '') + '_annotato.pdf';
+  return new File([await (await bakeDoc(null)).save()], name, { type: 'application/pdf' });
+}
+
+function offer(files, main = false) {
+  ready = { files, main };
+  $('#readyTitle').textContent = files.length > 1 ? `${files.length} PDF pronti` : 'PDF pronto';
+  $('#share').hidden = !navigator.canShare?.({ files });
+  $('#ready').showModal();
+}
+
+async function applyPages(data, strokes) {
+  if (!await open(data, fileName, strokes)) return;
+  dirty = true;
+  await idb('put', { bytes: data, name: fileName }, 'doc').catch(console.error);
+  saveInk();
+}
+
+$('#orgBtn').onclick = () => {
+  blurEditing();
+  closeNote();
+  setSel(null);
+  openOrganizer({
+    pages, bytes, fileName, pdfjs: pdfjsLib, offer, apply: applyPages,
+    baked: async only => (await bakeDoc(only)).save()
+  });
+};
 
 $('#save').onclick = async () => {
   blurEditing();
@@ -830,9 +860,7 @@ $('#save').onclick = async () => {
   b.disabled = true;
   b.lastChild.textContent = 'Preparo…';
   try {
-    readyFile = await buildPdf();
-    $('#share').hidden = !navigator.canShare?.({ files: [readyFile] });
-    $('#ready').showModal();
+    offer([await buildPdf()], true);
   } catch (err) {
     alert('Errore durante l\'esportazione: ' + err.message);
   } finally {
@@ -841,24 +869,28 @@ $('#save').onclick = async () => {
   }
 };
 function exported() {
-  dirty = false;
-  saveInk();
+  if (ready.main) {
+    dirty = false;
+    saveInk();
+  }
   $('#ready').close();
 }
 $('#share').onclick = async () => {
   try {
-    await navigator.share({ files: [readyFile] });
+    await navigator.share({ files: ready.files });
     exported();
   } catch (err) {
     if (err.name !== 'AbortError') alert(err.message);
   }
 };
 $('#download').onclick = () => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(readyFile);
-  a.download = readyFile.name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  ready.files.forEach((f, n) => setTimeout(() => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }, n * 300));
   exported();
 };
 
