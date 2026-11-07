@@ -2,6 +2,7 @@ import { penPath, hlPath, dSeg } from './ink.js';
 import { charX, charAt } from './search.js';
 
 export const HL_ALPHA = 0.45;
+export const covers = o => o.tool === 'pen' || /^#f{6}$/i.test(o.color || '');
 export const NOTE = 22;
 export const STAMPS = [
   ['APPROVATO', '#15803d'], ['RIFIUTATO', '#dc2626'], ['BOZZA', '#6b7280'],
@@ -132,8 +133,10 @@ export function paint(ctx, o, path) {
   ctx.lineCap = ctx.lineJoin = 'round';
   switch (o.tool) {
     case 'hl':
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.globalAlpha = HL_ALPHA;
+      if (!covers(o)) {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.globalAlpha = HL_ALPHA;
+      }
       ctx.strokeStyle = o.color;
       ctx.lineWidth = o.w;
       ctx.stroke(path(o));
@@ -213,8 +216,8 @@ export function exportItem(page, o, E) {
       break;
     case 'hl':
       round(() => page.drawSvgPath(hlPath(o.pts.map(P)), {
-        x: 0, y: 0, borderColor: color(o.color), borderWidth: o.w, borderOpacity: HL_ALPHA,
-        borderLineCap: LineCapStyle.Round, blendMode: BlendMode.Multiply
+        x: 0, y: 0, borderColor: color(o.color), borderWidth: o.w, borderLineCap: LineCapStyle.Round,
+        ...(covers(o) ? {} : { borderOpacity: HL_ALPHA, blendMode: BlendMode.Multiply })
       }));
       break;
     case 'shape':

@@ -1,7 +1,7 @@
 import * as pdfjsLib from './lib/pdf.min.js';
 import { penPath } from './ink.js';
 import {
-  HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, erasePart, mapItem, paint, inkPath, exportItem, onImageReady
+  HL_ALPHA, covers, NOTE, STAMPS, isDom, resizable, bbox, hit, erasePart, mapItem, paint, inkPath, exportItem, onImageReady
 } from './items.js';
 import { buildForms, fillPdfForm } from './forms.js';
 import { ocrPages, toWord, toImages } from './convert.js';
@@ -18,11 +18,11 @@ setMeasure(s => measurer.measureText(s).width);
 const INK = ['#111111', '#ffffff', '#1d4ed8', '#dc2626', '#15803d'];
 const COLORS = {
   pen: INK, text: INK, shape: INK,
-  hl: ['#ffff00', '#39ff14', '#ff9f1a', '#ff2bd6'],
+  hl: ['#ffff00', '#39ff14', '#ff9f1a', '#ff2bd6', '#ffffff'],
   mark: ['#facc15', '#22c55e', '#dc2626', '#2563eb'],
   sign: ['#111111', '#1d4ed8']
 };
-const SIZES = { pen: [1.2, 2.4, 4.5], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4], eraser: [3, 6, 12] };
+const SIZES = { pen: [1.4, 2.8, 5.2], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4], eraser: [3, 6, 12] };
 const NIB_W = { pen: 1, biro: 0.6, fountain: 1.5, marker: 2.8 };
 const FONTS = [
   ['Helvetica', ''], ['Arial (Arimo)', 'arimo'], ['Times New Roman (Tinos)', 'tinos'], ['Courier New (Cousine)', 'cousine'],
@@ -233,7 +233,7 @@ function inkPath2D(o) {
   return p;
 }
 
-const layerOf = (g, o) => o.tool === 'pen' ? g.top : o.tool === 'hl' || (o.tool === 'mark' && o.kind === 'hl') ? g.ink : g.under;
+const layerOf = (g, o) => covers(o) ? g.top : o.tool === 'hl' || (o.tool === 'mark' && o.kind === 'hl') ? g.ink : g.under;
 
 function paintInk(g) {
   const all = live?.g === g && live.s ? [...g.strokes, live.s] : g.strokes;
@@ -1321,7 +1321,7 @@ async function rasterPage(g, base) {
   x.fillRect(0, 0, c.width, c.height);
   await g.p.render({ canvasContext: x, viewport: vp }).promise;
   x.setTransform(k, 0, 0, k, 0, 0);
-  for (const o of [...g.strokes.filter(o => o.tool !== 'pen'), ...g.strokes.filter(o => o.tool === 'pen')]) {
+  for (const o of [...g.strokes.filter(o => !covers(o)), ...g.strokes.filter(covers)]) {
     if (o.tool === 'text') {
       x.fillStyle = o.color;
       x.font = `${o.size}px ${fontCss(o.font)}`;
@@ -1398,8 +1398,8 @@ async function bakeDoc(only) {
     E.pdf = (x, y) => g.vp.convertToPdfPoint(x, y);
     const [x0, y0] = E.pdf(0, 0), [x1, y1] = E.pdf(1, 0);
     E.rotate = degrees(Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI);
-    for (const o of g.strokes) if (o.tool !== 'pen') exportItem(page, o, E);
-    for (const o of g.strokes) if (o.tool === 'pen') exportItem(page, o, E);
+    for (const o of g.strokes) if (!covers(o)) exportItem(page, o, E);
+    for (const o of g.strokes) if (covers(o)) exportItem(page, o, E);
     for (const line of ocrLines(g.ocr || [])) {
       const str = [...line.map(w => w.str).join(' ')].map(ch => E.chars.has(ch.codePointAt(0)) ? ch : '?').join('');
       const first = line[0], last = line[line.length - 1], h = Math.max(...line.map(w => w.h));
