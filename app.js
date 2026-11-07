@@ -67,7 +67,7 @@ const st = {
   tool: 'pen', zoom: 1, finger: false, sig: null, stamp: 0,
   color: Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, v[0]])),
   size: { pen: 1, hl: 1, text: 1, shape: 1, eraser: 1 },
-  kind: { shape: 'rect', mark: 'hl', text: 'new', eraser: 'item', pen: 'pen' }
+  kind: { shape: 'rect', mark: 'under', text: 'new', eraser: 'item', pen: 'pen' }
 };
 let doc = null, bytes = null, fileName = '', pages = [], maxW = 1, sigs = [];
 let undoStack = [], redoStack = [], dirty = false, live = null, lastPen = 0, ready = null;
@@ -388,7 +388,8 @@ pagesEl.addEventListener('pointerdown', e => {
   else if (t === 'shape' && st.kind.shape === 'redact') live.s = { tool: 'redact', x, y, w: 0, h: 0 };
   else if (t === 'shape') live.s = { tool: 'shape', kind: st.kind.shape, color: st.color.shape, w: SIZES.shape[st.size.shape], x1: x, y1: y, x2: x, y2: y };
   else if (t === 'mark') {
-    if (!g.words) { loadText(g); live = null; return; }
+    if (!g.words) { loadText(g); live = null; return toast('Attendi un istante e riprova'); }
+    if (!g.words.length) { live = null; return toast('Questa pagina non ha testo selezionabile: usa ⋯ › Riconosci testo (OCR)'); }
     live.s = { tool: 'mark', kind: st.kind.mark, color: st.kind.mark === 'copy' ? '#60a5fa' : st.color.mark, rects: [], text: '' };
   } else if (t === 'select') selectDown(g, x, y);
   move(e);
@@ -881,7 +882,7 @@ function renderOpts() {
     else if (st.kind.shape === 'redact') parts.push(hint('Trascina sopra ciò che vuoi oscurare. Nel PDF salvato la pagina diventa un\'immagine'));
     else parts.push(swatches('shape'), sizes('shape'));
   }
-  if (t === 'mark') parts.push(kinds('mark', [['hl', 'Evidenzia'], ['under', 'Sottolinea'], ['strike', 'Barra'], ['copy', 'Copia']]), ...(st.kind.mark === 'copy' ? [] : [swatches('mark')]), hint(st.kind.mark === 'copy' ? 'Trascina sul testo da copiare' : 'Trascina sul testo'));
+  if (t === 'mark') parts.push(kinds('mark', [['under', 'Sottolinea'], ['hl', 'Evidenzia'], ['strike', 'Barra'], ['copy', 'Copia']]), ...(st.kind.mark === 'copy' ? [] : [swatches('mark')]), hint(st.kind.mark === 'copy' ? 'Trascina sul testo da copiare' : 'Trascina sul testo'));
   if (t === 'text') {
     parts.push(kinds('text', [['new', 'Nuovo testo'], ['edit', 'Modifica testo PDF']]));
     if (st.kind.text === 'edit') parts.push(hint('Tocca una riga di testo del PDF per riscriverla'));
@@ -948,6 +949,7 @@ $('#tools').onclick = e => {
   document.querySelectorAll('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
   if (t !== 'select') setSel(null);
   if (t === 'sign' && !sigs.length) openPad();
+  if (t === 'mark') pages.forEach(loadText);
   renderOpts();
 };
 document.body.dataset.tool = st.tool;
