@@ -24,6 +24,26 @@ const COLORS = {
 };
 const SIZES = { pen: [1.2, 2.4, 4.5], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4], eraser: [4, 9, 18] };
 const NIB_W = { pen: 1, biro: 0.6, fountain: 1.5, marker: 2.8 };
+const FONTS = [
+  ['Helvetica', ''], ['Arial (Arimo)', 'arimo'], ['Times New Roman (Tinos)', 'tinos'], ['Courier New (Cousine)', 'cousine'],
+  ['Calibri (Carlito)', 'carlito'], ['Cambria (Caladea)', 'caladea'], ['Roboto', 'roboto'], ['Open Sans', 'open-sans'],
+  ['Lato', 'lato'], ['Montserrat', 'montserrat'], ['Poppins', 'poppins'], ['Raleway', 'raleway'], ['Nunito', 'nunito'],
+  ['Source Sans 3', 'source-sans-3'], ['Merriweather', 'merriweather'], ['Playfair Display', 'playfair-display'],
+  ['EB Garamond', 'eb-garamond'], ['Libre Baskerville', 'libre-baskerville'], ['Lora', 'lora'], ['PT Serif', 'pt-serif'],
+  ['Oswald', 'oswald'], ['Ubuntu', 'ubuntu'], ['Inconsolata', 'inconsolata'], ['Dancing Script', 'dancing-script'],
+  ['Pacifico', 'pacifico'], ['Caveat', 'caveat']
+];
+const fontCss = id => (id ? `'F-${id}', ` : '') + 'Helvetica, Arial, sans-serif';
+const fontsLoaded = new Map();
+function loadFont(id) {
+  if (!id) return Promise.resolve();
+  if (!fontsLoaded.has(id)) {
+    const f = new FontFace('F-' + id, `url(fonts/extra/${id}.woff)`);
+    document.fonts.add(f);
+    fontsLoaded.set(id, f.load().catch(console.error));
+  }
+  return fontsLoaded.get(id);
+}
 const ERASER_R = 8, SELECT_TOL = 6, STAMP_H = 34, SIG_W = 150;
 const MAX_CANVAS_PX = 12e6;
 const ZOOM_MIN = 0.5, ZOOM_MAX = 5;
@@ -302,6 +322,7 @@ function annotEl(o) {
   if (o.tool === 'text') {
     a.textContent = o.text;
     a.style.fontSize = o.size + 'px';
+    if (o.font) { a.style.fontFamily = fontCss(o.font); loadFont(o.font); }
     a.style.color = o.color;
   } else {
     a.innerHTML = svg('note');
@@ -513,7 +534,7 @@ pagesEl.addEventListener('click', e => {
   if (st.tool === 'shape') return pickImage(g, x, y);
   if (st.kind.text === 'edit') return editPdfText(g, x, y);
   const size = SIZES.text[st.size.text];
-  const draft = { tool: 'text', x, y: y - size * 0.7, text: '', size, color: st.color.text };
+  const draft = { tool: 'text', x, y: y - size * 0.7, text: '', size, color: st.color.text, ...(st.font && { font: st.font }) };
   const t = annotEl(draft);
   g.layer.append(t);
   editText(g, null, t, draft);
@@ -821,6 +842,12 @@ function swatches(key, apply = c => { st.color[key] = c; renderOpts(); }, curren
   }), customSwatch(COLORS[key].includes(current) ? null : current, apply));
 }
 
+function fontPicker(cur, apply) {
+  const s = el('select', { className: 'font-pick', ariaLabel: 'Carattere', onchange: () => { loadFont(s.value); apply(s.value); } },
+    ...FONTS.map(([label, id]) => el('option', { value: id, textContent: label, selected: id === cur })));
+  return s;
+}
+
 function customSwatch(current, apply) {
   const dot = el('i'), input = el('input', { type: 'color', ariaLabel: 'Altri colori', value: current || '#888888', onchange: e => apply(e.target.value) });
   if (current) dot.style.setProperty('--c', current);
@@ -858,7 +885,7 @@ function renderOpts() {
   if (t === 'text') {
     parts.push(kinds('text', [['new', 'Nuovo testo'], ['edit', 'Modifica testo PDF']]));
     if (st.kind.text === 'edit') parts.push(hint('Tocca una riga di testo del PDF per riscriverla'));
-    else parts.push(swatches('text'), sizes('text'), hint('Tocca la pagina per scrivere'));
+    else parts.push(fontPicker(st.font, f => { st.font = f; }), swatches('text'), sizes('text'), hint('Tocca la pagina per scrivere'));
   }
   if (t === 'note') parts.push(hint('Tocca la pagina per aggiungere un commento'));
   if (t === 'eraser') parts.push(kinds('eraser', [['item', 'Elementi'], ['free', 'Libera']]), ...(st.kind.eraser === 'free' ? [sizes('eraser'), hint('Cancella solo la parte di tratto su cui passi')] : [hint('Passa sopra un elemento per cancellarlo')]));
@@ -895,6 +922,7 @@ function renderOpts() {
         const key = { pen: 'pen', hl: 'hl', shape: 'shape', mark: 'mark', text: 'text', sig: 'sign' }[o.tool];
         if (key) parts.push(swatches(key, c => { const n = { ...o, color: c }; replaceItem(g, o, n); setSel({ g, o: n }); renderOpts(); }, o.color));
       }
+      if (o.tool === 'text') parts.push(fontPicker(o.font || '', f => { const n = { ...o, font: f || undefined }; replaceItem(g, o, n); setSel({ g, o: n }); renderOpts(); }));
       parts.push(
         optBtn({}, false, () => {
           const n = mapItem(o, ([x, y]) => [x + 12, y + 12], 1);
@@ -1231,10 +1259,11 @@ addEventListener('keydown', e => {
 
 const hex = h => PDFLib.rgb(...[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255));
 
-function baselineRatio() {
+function baselineRatio(id) {
   const d = document.createElement('div');
   d.className = 'annot text';
   d.style.cssText = 'position:absolute;visibility:hidden;font-size:100px';
+  d.style.fontFamily = fontCss(id);
   d.innerHTML = 'H<i style="display:inline-block;width:1px;height:0"></i>';
   document.body.append(d);
   const r = (d.lastChild.getBoundingClientRect().top - d.getBoundingClientRect().top) / 100;
@@ -1287,6 +1316,17 @@ async function bakeDoc(only) {
   for (const src of new Set(pages.flatMap(g => g.strokes.filter(o => o.tool === 'image').map(o => o.src)))) {
     const data = Uint8Array.from(atob(src.split(',')[1]), ch => ch.charCodeAt(0));
     E.images.set(src, src.startsWith('data:image/png') ? await out.embedPng(data) : await out.embedJpg(data));
+  }
+  E.fonts = new Map();
+  const used = new Set(pages.flatMap(g => g.strokes.filter(o => o.tool === 'text' && o.font).map(o => o.font)));
+  if (used.size) {
+    if (!window.fontkit) await new Promise((ok, ko) => document.head.append(Object.assign(document.createElement('script'), { src: 'lib/fontkit.min.js', onload: ok, onerror: ko })));
+    out.registerFontkit(fontkit);
+    for (const id of used) {
+      await loadFont(id);
+      const f = await out.embedFont(await (await fetch(`fonts/extra/${id}.woff`)).arrayBuffer(), { subset: true });
+      E.fonts.set(id, { font: f, chars: new Set(f.getCharacterSet()), base: baselineRatio(id) });
+    }
   }
   if (!only) fillPdfForm(out, formVals, E.chars);
   for (const [i, g] of pages.entries()) {

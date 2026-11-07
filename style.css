@@ -371,3 +371,4 @@ button, select, label, input, a, summary, [role="button"] { touch-action: manipu
 .swatch.custom { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 38px; border-radius: 10px; cursor: pointer; }
 .swatch.custom:not(.on) i { background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
 .swatch.custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; cursor: pointer; }
+.font-pick { height: 38px; max-width: 220px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--fg); font: 500 14px Inter, system-ui, sans-serif; box-shadow: var(--sh-1); }

@@ -199,8 +199,8 @@ export function exportItem(page, o, E) {
   const svg = L => L.map(l => 'M ' + l.map(p => P(p).slice(0, 2).join(' ')).join(' L ')).join(' ');
   const { LineCapStyle, LineJoinStyle, BlendMode, pushGraphicsState, popGraphicsState, setLineJoin, PDFHexString } = PDFLib;
   const round = fn => { page.pushOperators(pushGraphicsState(), setLineJoin(LineJoinStyle.Round)); fn(); page.pushOperators(popGraphicsState()); };
-  const text = (str, x, y, size, font, c) => {
-    const safe = [...str].map(ch => E.chars.has(ch.codePointAt(0)) ? ch : '?').join('');
+  const text = (str, x, y, size, font, c, chars = E.chars) => {
+    const safe = [...str].map(ch => chars.has(ch.codePointAt(0)) ? ch : '?').join('');
     const [X, Y] = pdf(x, y);
     page.drawText(safe, { x: X, y: Y, size, font, color: c, rotate: E.rotate });
   };
@@ -238,9 +238,11 @@ export function exportItem(page, o, E) {
       text(o.date, x + w / 2 - E.bold.widthOfTextAtSize(o.date, ds) / 2, y + h * 0.82, ds, E.bold, c);
       break;
     }
-    case 'text':
-      o.text.split('\n').forEach((line, n) => text(line, o.x, o.y + o.size * (E.base + 1.2 * n), o.size, E.font, color(o.color)));
+    case 'text': {
+      const f = E.fonts?.get(o.font) || { font: E.font, chars: E.chars, base: E.base };
+      o.text.split('\n').forEach((line, n) => text(line, o.x, o.y + o.size * (f.base + 1.2 * n), o.size, f.font, color(o.color), f.chars));
       break;
+    }
     case 'note': {
       const [ax, ay] = pdf(o.x, o.y), [bx, by] = pdf(o.x + NOTE, o.y + NOTE);
       const l = Math.min(ax, bx), b = Math.min(ay, by);
