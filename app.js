@@ -130,7 +130,8 @@ async function open(data, name, strokes, forms = {}, ocr = []) {
     const el = document.createElement('div');
     el.className = 'page';
     el.dataset.i = n - 1;
-    const c = document.createElement('canvas'), under = document.createElement('canvas'), ink = document.createElement('canvas');
+    const c = document.createElement('canvas'), under = document.createElement('canvas'), ink = document.createElement('canvas'), top = document.createElement('canvas');
+    top.className = 'top';
     const layer = document.createElement('div'), hits = document.createElement('div'), formsEl = document.createElement('div');
     ink.className = 'ink';
     layer.className = 'annots';
@@ -140,9 +141,9 @@ async function open(data, name, strokes, forms = {}, ocr = []) {
       l.style.width = vp.width + 'px';
       l.style.height = vp.height + 'px';
     }
-    el.append(c, under, ink, hits, formsEl, layer);
+    el.append(c, under, ink, hits, formsEl, layer, top);
     pagesEl.append(el);
-    pages.push({ p, vp, el, c, under, ink, layer, hits, forms: formsEl, strokes: strokes?.[n - 1] || [], ocr: ocr?.[n - 1] || null, scale: 0, near: false, task: null, words: null, textP: null });
+    pages.push({ p, vp, el, c, under, ink, top, layer, hits, forms: formsEl, strokes: strokes?.[n - 1] || [], ocr: ocr?.[n - 1] || null, scale: 0, near: false, task: null, words: null, textP: null });
   }
   maxW = Math.max(...pages.map(g => g.vp.width));
   viewer.scrollTo(0, 0);
@@ -197,15 +198,15 @@ async function draw(g) {
   if (g.scale !== r) return;
   g.c.replaceWith(c);
   g.c = c;
-  g.ink.width = g.under.width = c.width;
-  g.ink.height = g.under.height = c.height;
+  g.ink.width = g.under.width = g.top.width = c.width;
+  g.ink.height = g.under.height = g.top.height = c.height;
   paintInk(g);
 }
 
 function free(g) {
   g.task?.cancel();
   g.scale = 0;
-  g.c.width = g.c.height = g.ink.width = g.ink.height = g.under.width = g.under.height = 0;
+  g.c.width = g.c.height = g.ink.width = g.ink.height = g.under.width = g.under.height = g.top.width = g.top.height = 0;
 }
 
 function loadText(g) {
@@ -232,18 +233,18 @@ function inkPath2D(o) {
   return p;
 }
 
-const onInk = o => o.tool === 'hl' || (o.tool === 'mark' && o.kind === 'hl');
+const layerOf = (g, o) => o.tool === 'pen' ? g.top : o.tool === 'hl' || (o.tool === 'mark' && o.kind === 'hl') ? g.ink : g.under;
 
 function paintInk(g) {
   const all = live?.g === g && live.s ? [...g.strokes, live.s] : g.strokes;
-  for (const c of [g.under, g.ink]) {
+  for (const c of [g.under, g.ink, g.top]) {
     const ctx = c.getContext('2d');
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
     if (!c.width) continue;
     const k = c.width / g.vp.width;
     ctx.setTransform(k, 0, 0, k, 0, 0);
-    for (const o of all) if (!isDom(o) && onInk(o) !== (c === g.under)) paint(ctx, o, inkPath2D);
+    for (const o of all) if (!isDom(o) && layerOf(g, o) === c) paint(ctx, o, inkPath2D);
   }
 }
 
@@ -1320,7 +1321,7 @@ async function rasterPage(g, base) {
   x.fillRect(0, 0, c.width, c.height);
   await g.p.render({ canvasContext: x, viewport: vp }).promise;
   x.setTransform(k, 0, 0, k, 0, 0);
-  for (const o of g.strokes) {
+  for (const o of [...g.strokes.filter(o => o.tool !== 'pen'), ...g.strokes.filter(o => o.tool === 'pen')]) {
     if (o.tool === 'text') {
       x.fillStyle = o.color;
       x.font = `${o.size}px ${fontCss(o.font)}`;
@@ -1397,7 +1398,8 @@ async function bakeDoc(only) {
     E.pdf = (x, y) => g.vp.convertToPdfPoint(x, y);
     const [x0, y0] = E.pdf(0, 0), [x1, y1] = E.pdf(1, 0);
     E.rotate = degrees(Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI);
-    for (const o of g.strokes) exportItem(page, o, E);
+    for (const o of g.strokes) if (o.tool !== 'pen') exportItem(page, o, E);
+    for (const o of g.strokes) if (o.tool === 'pen') exportItem(page, o, E);
     for (const line of ocrLines(g.ocr || [])) {
       const str = [...line.map(w => w.str).join(' ')].map(ch => E.chars.has(ch.codePointAt(0)) ? ch : '?').join('');
       const first = line[0], last = line[line.length - 1], h = Math.max(...line.map(w => w.h));
