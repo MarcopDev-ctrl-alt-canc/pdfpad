@@ -1,7 +1,7 @@
 import * as pdfjsLib from './lib/pdf.min.js';
 import { penPath } from './ink.js';
 import {
-  HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, erasePart, mapItem, paint, inkPath, exportItem, markRects, onImageReady
+  HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, erasePart, mapItem, paint, inkPath, exportItem, onImageReady
 } from './items.js';
 import { buildForms, fillPdfForm } from './forms.js';
 import { ocrPages, toWord, toImages } from './convert.js';
@@ -22,7 +22,7 @@ const COLORS = {
   mark: ['#facc15', '#22c55e', '#dc2626', '#2563eb'],
   sign: ['#111111', '#1d4ed8']
 };
-const SIZES = { pen: [1.2, 2.4, 4.5], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4], eraser: [4, 9, 18] };
+const SIZES = { pen: [1.2, 2.4, 4.5], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4], eraser: [3, 6, 12] };
 const NIB_W = { pen: 1, biro: 0.6, fountain: 1.5, marker: 2.8 };
 const FONTS = [
   ['Helvetica', ''], ['Arial (Arimo)', 'arimo'], ['Times New Roman (Tinos)', 'tinos'], ['Courier New (Cousine)', 'cousine'],
@@ -67,7 +67,7 @@ const st = {
   tool: 'pen', zoom: 1, finger: false, sig: null, stamp: 0,
   color: Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, v[0]])),
   size: { pen: 1, hl: 1, text: 1, shape: 1, eraser: 1 },
-  kind: { shape: 'rect', mark: 'under', text: 'new', eraser: 'item', pen: 'pen' }
+  kind: { shape: 'rect', text: 'new', eraser: 'item', pen: 'pen' }
 };
 let doc = null, bytes = null, fileName = '', pages = [], maxW = 1, sigs = [];
 let undoStack = [], redoStack = [], dirty = false, live = null, lastPen = 0, ready = null;
@@ -105,9 +105,14 @@ async function open(data, name, strokes, forms = {}, ocr = []) {
   emptyEl.hidden = false;
   let d;
   try {
-    d = await pdfjsLib.getDocument({
+    const task = pdfjsLib.getDocument({
       data: data.slice(), cMapUrl: absUrl('lib/cmaps/'), cMapPacked: true, standardFontDataUrl: absUrl('lib/standard_fonts/')
-    }).promise;
+    });
+    task.onPassword = (cb, why) => {
+      const p = prompt(why === pdfjsLib.PasswordResponses.INCORRECT_PASSWORD ? 'Password errata, riprova:' : 'Il PDF è protetto. Inserisci la password:');
+      p === null ? task.destroy() : cb(p);
+    };
+    d = await task.promise;
   } catch (err) {
     msgEl.textContent = 'Impossibile aprire il PDF: ' + err.message;
     emptyEl.hidden = !!doc;
@@ -387,11 +392,7 @@ pagesEl.addEventListener('pointerdown', e => {
   else if (t === 'pen') live.s = { tool: t, nib: st.kind.pen, color: st.color[t], w: SIZES[t][st.size[t]] * NIB_W[st.kind.pen], pts: [] };
   else if (t === 'shape' && st.kind.shape === 'redact') live.s = { tool: 'redact', x, y, w: 0, h: 0 };
   else if (t === 'shape') live.s = { tool: 'shape', kind: st.kind.shape, color: st.color.shape, w: SIZES.shape[st.size.shape], x1: x, y1: y, x2: x, y2: y };
-  else if (t === 'mark') {
-    if (!g.words) { loadText(g); live = null; return toast('Attendi un istante e riprova'); }
-    if (!g.words.length) { live = null; return toast('Questa pagina non ha testo selezionabile: usa ⋯ › Riconosci testo (OCR)'); }
-    live.s = { tool: 'mark', kind: st.kind.mark, color: st.kind.mark === 'copy' ? '#60a5fa' : st.color.mark, rects: [], text: '' };
-  } else if (t === 'select') selectDown(g, x, y);
+  else if (t === 'select') selectDown(g, x, y);
   move(e);
 });
 
@@ -426,8 +427,6 @@ function move(e) {
       s.x2 = x; s.y2 = y;
     } else if (s?.tool === 'redact') {
       Object.assign(s, { x: Math.min(x, live.x0), y: Math.min(y, live.y0), w: Math.abs(x - live.x0), h: Math.abs(y - live.y0) });
-    } else if (s?.tool === 'mark') {
-      Object.assign(s, markRects(live.g.words, live.x0, live.y0, x, y));
     } else if (st.tool === 'select') {
       selectMove(x, y);
     }
@@ -440,12 +439,6 @@ function end(e) {
   if (drag?.id === e.pointerId) return endDrag(e);
   if (live?.id !== e.pointerId) return;
   const { g, s, before } = live;
-  if (s?.kind === 'copy') {
-    live = null;
-    schedule(g);
-    if (s.text) navigator.clipboard?.writeText(s.text).then(() => toast('Testo copiato'), () => toast('Copia non riuscita'));
-    return;
-  }
   const keep = s && (s.pts?.length || s.rects?.length || (s.tool === 'shape' && Math.hypot(s.x2 - s.x1, s.y2 - s.y1) > 3) || (s.tool === 'redact' && s.w > 3 && s.h > 3));
   if (keep) g.strokes.push(s);
   live = null;
@@ -882,7 +875,6 @@ function renderOpts() {
     else if (st.kind.shape === 'redact') parts.push(hint('Trascina sopra ciò che vuoi oscurare. Nel PDF salvato la pagina diventa un\'immagine'));
     else parts.push(swatches('shape'), sizes('shape'));
   }
-  if (t === 'mark') parts.push(kinds('mark', [['under', 'Sottolinea'], ['hl', 'Evidenzia'], ['strike', 'Barra'], ['copy', 'Copia']]), ...(st.kind.mark === 'copy' ? [] : [swatches('mark')]), hint(st.kind.mark === 'copy' ? 'Trascina sul testo da copiare' : 'Trascina sul testo'));
   if (t === 'text') {
     parts.push(kinds('text', [['new', 'Nuovo testo'], ['edit', 'Modifica testo PDF']]));
     if (st.kind.text === 'edit') parts.push(hint('Tocca una riga di testo del PDF per riscriverla'));
@@ -949,7 +941,6 @@ $('#tools').onclick = e => {
   document.querySelectorAll('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
   if (t !== 'select') setSel(null);
   if (t === 'sign' && !sigs.length) openPad();
-  if (t === 'mark') pages.forEach(loadText);
   renderOpts();
 };
 document.body.dataset.tool = st.tool;
@@ -1120,15 +1111,62 @@ $('#homeCreate').onchange = e => {
 };
 $('#scanBig').onclick = () => startCreate('scan');
 $('#file').onchange = async e => {
-  const files = [...e.target.files];
+  const files = [...e.target.files], imgs = [];
   e.target.value = '';
   let first = null;
   for (const f of files) {
-    const id = await libAdd(new Uint8Array(await f.arrayBuffer()), f.name);
-    first ??= id;
+    try {
+      const data = new Uint8Array(await f.arrayBuffer());
+      if (isImage(f)) { imgs.push(f); continue; }
+      const pdf = isPdf(data) ? data : await pagesPdf(data);
+      const id = await libAdd(pdf, f.name.replace(/.pages$/i, '.pdf'));
+      first ??= id;
+    } catch (err) {
+      console.error(err);
+      alert(`Impossibile aprire "${f.name}": ${err.message}`);
+    }
   }
+  if (imgs.length) first ??= await libAdd(await imagesPdf(imgs), imgs[0].name.replace(/.[^.]+$/, '') + '.pdf');
   if (first) await openDoc(first);
 };
+
+const isPdf = data => new TextDecoder('latin1').decode(data.subarray(0, 1024)).includes('%PDF');
+const isImage = f => f.type.startsWith('image/') || /.(jpe?g|png|heic|heif|webp|gif|bmp)$/i.test(f.name);
+
+async function imagesPdf(files) {
+  const out = await PDFLib.PDFDocument.create();
+  for (const f of files) {
+    const bmp = await createImageBitmap(f), c = document.createElement('canvas');
+    c.width = bmp.width;
+    c.height = bmp.height;
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff';
+    x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(bmp, 0, 0);
+    const jpg = await out.embedJpg(await (await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
+    const k = 842 / Math.max(bmp.width, bmp.height), w = bmp.width * k, h = bmp.height * k;
+    out.addPage([w, h]).drawImage(jpg, { x: 0, y: 0, width: w, height: h });
+  }
+  return out.save();
+}
+
+async function pagesPdf(data) {
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  if (data.length < 22 || dv.getUint32(0, true) !== 0x04034b50) throw new Error('formato non supportato. Si aprono PDF, immagini e file Pages');
+  let e = data.length - 22;
+  while (e > 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  const files = new Map();
+  for (let p = dv.getUint32(e + 16, true), n = dv.getUint16(e + 10, true); n-- > 0;) {
+    const nl = dv.getUint16(p + 28, true), name = new TextDecoder().decode(data.subarray(p + 46, p + 46 + nl));
+    files.set(name, { method: dv.getUint16(p + 10, true), size: dv.getUint32(p + 20, true), off: dv.getUint32(p + 42, true) });
+    p += 46 + nl + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+  }
+  const ent = files.get('QuickLook/Preview.pdf');
+  if (!ent) throw new Error('questo file Pages non contiene una versione PDF. Aprilo in Pages e scegli Condividi › Esporta › PDF, poi apri il PDF qui');
+  const start = ent.off + 30 + dv.getUint16(ent.off + 26, true) + dv.getUint16(ent.off + 28, true), raw = data.subarray(start, start + ent.size);
+  if (ent.method === 0) return raw.slice();
+  return new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+}
 
 async function openDoc(id) {
   blurEditing();
@@ -1285,7 +1323,7 @@ async function rasterPage(g, base) {
   for (const o of g.strokes) {
     if (o.tool === 'text') {
       x.fillStyle = o.color;
-      x.font = `${o.size}px Helvetica, Arial, sans-serif`;
+      x.font = `${o.size}px ${fontCss(o.font)}`;
       o.text.split('\n').forEach((line, n) => x.fillText(line, o.x, o.y + o.size * (base + 1.2 * n)));
     } else if (o.tool !== 'note') paint(x, o, it => new Path2D(inkPath(it)));
   }
@@ -1302,9 +1340,25 @@ function ocrLines(words) {
   return lines.map(l => l.sort((a, b) => a.x - b.x));
 }
 
+async function flatDoc() {
+  const out = await PDFLib.PDFDocument.create(), base = baselineRatio();
+  for (const g of pages) {
+    const jpg = await out.embedJpg(await rasterPage(g, base));
+    out.addPage([g.vp.width, g.vp.height]).drawImage(jpg, { x: 0, y: 0, width: g.vp.width, height: g.vp.height });
+  }
+  alert('Il PDF originale è protetto o danneggiato: le pagine vengono salvate come immagini.');
+  return out;
+}
+
 async function bakeDoc(only) {
   const { PDFDocument, StandardFonts, degrees } = PDFLib;
-  const out = await PDFDocument.load(bytes);
+  let out;
+  try {
+    out = await PDFDocument.load(bytes);
+  } catch (err) {
+    console.warn(err);
+    return flatDoc();
+  }
   const font = await out.embedFont(StandardFonts.Helvetica);
   const E = {
     out, color: hex, font, bold: await out.embedFont(StandardFonts.HelveticaBold),

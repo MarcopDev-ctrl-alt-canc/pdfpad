@@ -76,12 +76,11 @@ button.big { min-height: 52px; padding: 0 30px; font-size: 16px; border-radius: 
 .seg button { min-height: 38px; min-width: 40px; border-radius: 10px; }
 .seg button:not(.icon) { padding: 0 14px; font-size: 14px; }
 .seg button.on { background: var(--raised); color: var(--fg); box-shadow: var(--sh-2); }
-#tools { display: flex; gap: 6px; flex: none; }
-.seg.sec1 { background: #e4e4e8; box-shadow: inset 0 0 0 1px rgba(15, 15, 25, .1); }
-.seg.sec2 { background: #d6d6dc; box-shadow: inset 0 0 0 1px rgba(15, 15, 25, .14); }
-@media (prefers-color-scheme: dark) { .seg.sec1 { background: #2a2a30; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); } .seg.sec2 { background: #34343c; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); } }
+#tools { display: flex; align-items: center; gap: 0; padding: 3px; flex: none; background: var(--track); border-radius: 13px; box-shadow: inset 0 0 0 1px var(--line), inset 0 1px 2px rgba(0, 0, 0, .06); }
+#tools .seg { padding: 0; background: none; box-shadow: none; border-radius: 0; }
+#tools .seg + .seg { margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--line); }
 @media (max-width: 880px) {
-  #tools { gap: 3px; }
+  #tools .seg + .seg { margin-left: 2px; padding-left: 2px; }
   #save { padding: 0; min-width: 48px; position: sticky; right: 0; }
   #save span { display: none; }
   #tools button { min-width: 34px; }

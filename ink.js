@@ -7,7 +7,15 @@ const mid = (a, b) => pt([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
 
 const NIB = Math.SQRT1_2;
 
-export function penPath(pts, w, nib) {
+const smooth = pts => pts.map((p, i) => {
+  if (!i || i === pts.length - 1) return p;
+  const a = pts[i - 1], b = pts[i + 1];
+  return [(a[0] + 2 * p[0] + b[0]) / 4, (a[1] + 2 * p[1] + b[1]) / 4, ((a[2] ?? 0.5) + (p[2] ?? 0.5) * 2 + (b[2] ?? 0.5)) / 4];
+});
+
+export function penPath(raw, w, nib) {
+  let pts = raw;
+  for (let i = 0; i < 2 && pts.length > 2; i++) pts = smooth(pts);
   const n = pts.length, L = [], R = [];
   const press = p => PRESSURE_MIN + (1 - PRESSURE_MIN) * Math.min(1, p * PRESSURE_GAIN);
   const rad = i => {
