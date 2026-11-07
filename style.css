@@ -5,6 +5,7 @@
   font-display: swap;
 }
 :root {
+  --safe-top: env(safe-area-inset-top);
   --bg: #e9e9ec; --bar: rgba(252, 252, 253, .86); --solid: #fcfcfd; --track: #ececef; --raised: #fff;
   --fg: #17171a; --muted: #6b6b76; --line: rgba(15, 15, 25, .1); --hover: rgba(15, 15, 25, .06);
   --acc: #d33a2c; --acc-2: #b92b1f; --acc-fg: #fff; --ring: rgba(211, 58, 44, .35);
@@ -38,7 +39,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 
 #top {
   position: relative; z-index: 3;
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--safe-top);
   background: var(--bar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
   box-shadow: 0 1px 0 var(--line), 0 6px 18px rgba(16, 16, 24, .05);
 }
@@ -233,7 +234,7 @@ dialog form { margin: 0 0 0 auto; }
 
 #org {
   position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
-  background: var(--bg); padding-top: env(safe-area-inset-top);
+  background: var(--bg); padding-top: var(--safe-top);
 }
 #org[hidden] { display: none; }
 .org-bar, .org-tools {
@@ -271,7 +272,7 @@ dialog form { margin: 0 0 0 auto; }
 #empty p { color: var(--muted); }
 #home {
   position: fixed; inset: 0; z-index: 9; display: flex; flex-direction: column;
-  background: var(--bg); padding-top: env(safe-area-inset-top);
+  background: var(--bg); padding-top: var(--safe-top);
 }
 #home[hidden], #homeList[hidden], #homeEmpty[hidden] { display: none; }
 #homeEmpty { flex: 1; display: grid; place-items: center; padding: 24px; text-align: center; }
@@ -323,7 +324,7 @@ dialog form { margin: 0 0 0 auto; }
 button.ghost { background: var(--track); margin-top: 10px; font-weight: 600; }
 #scan {
   position: fixed; inset: 0; z-index: 11; display: flex; flex-direction: column;
-  background: #111114; color: #f2f2f4; padding-top: env(safe-area-inset-top);
+  background: #111114; color: #f2f2f4; padding-top: var(--safe-top);
   --line: rgba(255, 255, 255, .1); --track: #2a2a30; --raised: #3a3a42; --fg: #f2f2f4; --muted: #9d9daa; --solid: #1e1e23; --bar: rgba(30, 30, 35, .9);
 }
 #scan[hidden], #scanStage[hidden], #scanTools[hidden], #scanEmpty[hidden] { display: none; }
@@ -359,3 +360,4 @@ button.ghost { background: var(--track); margin-top: 10px; font-weight: 600; }
   font: inherit; font-size: 16px; color: inherit; background: var(--track); -webkit-user-select: text; user-select: text;
 }
 #docFields .hint { white-space: normal; margin: 0; }
+@media (display-mode: standalone) { :root { --safe-top: max(24px, env(safe-area-inset-top)); } }
