@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { markRects, bbox, hit, mapItem, shapeLines } from '../items.js';
+import { markRects, bbox, hit, mapItem, shapeLines, erasePart } from '../items.js';
 
 const words = [
   { str: 'Ciao mondo', x: 10, y: 10, w: 100, h: 12 },
@@ -33,4 +33,11 @@ assert.ok(!hit(line, 50, 20, 3));
 const stamp = { tool: 'stamp', x: 5, y: 5, w: 40, h: 20 };
 assert.deepEqual(mapItem(stamp, ([x, y]) => [x + 1, y + 2], 1), { ...stamp, x: 6, y: 7 });
 
+const stroke = { tool: 'pen', w: 2, pts: Array.from({ length: 21 }, (_, i) => [i * 5, 0, 0.5]) };
+assert.equal(erasePart(stroke, 50, 40, 5), null);
+const cut = erasePart(stroke, 50, 0, 5);
+assert.equal(cut.length, 2);
+assert.deepEqual([cut[0].pts.at(-1)[0], cut[1].pts[0][0]], [40, 60]);
+assert.deepEqual(erasePart(stroke, 0, 0, 200), []);
+assert.equal(erasePart({ tool: 'text', x: 0, y: 0 }, 0, 0, 5), null);
 console.log('ok');

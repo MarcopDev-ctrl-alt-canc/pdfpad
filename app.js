@@ -1,7 +1,7 @@
 import * as pdfjsLib from './lib/pdf.min.js';
 import { penPath } from './ink.js';
 import {
-  HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, mapItem, paint, inkPath, exportItem, markRects, onImageReady
+  HL_ALPHA, NOTE, STAMPS, isDom, resizable, bbox, hit, erasePart, mapItem, paint, inkPath, exportItem, markRects, onImageReady
 } from './items.js';
 import { buildForms, fillPdfForm } from './forms.js';
 import { ocrPages, toWord, toImages } from './convert.js';
@@ -22,7 +22,7 @@ const COLORS = {
   mark: ['#facc15', '#22c55e', '#dc2626', '#2563eb'],
   sign: ['#111111', '#1d4ed8']
 };
-const SIZES = { pen: [1.2, 2.4, 4.5], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4] };
+const SIZES = { pen: [1.2, 2.4, 4.5], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4], eraser: [4, 9, 18] };
 const ERASER_R = 8, SELECT_TOL = 6, STAMP_H = 34, SIG_W = 150;
 const MAX_CANVAS_PX = 12e6;
 const ZOOM_MIN = 0.5, ZOOM_MAX = 5;
@@ -45,8 +45,8 @@ const viewer = $('#viewer'), pagesEl = $('#pages'), thumbsEl = $('#thumbs'), emp
 const st = {
   tool: 'pen', zoom: 1, finger: false, sig: null, stamp: 0,
   color: Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, v[0]])),
-  size: { pen: 1, hl: 1, text: 1, shape: 1 },
-  kind: { shape: 'rect', mark: 'hl', text: 'new' }
+  size: { pen: 1, hl: 1, text: 1, shape: 1, eraser: 1 },
+  kind: { shape: 'rect', mark: 'hl', text: 'new', eraser: 'item' }
 };
 let doc = null, bytes = null, fileName = '', pages = [], maxW = 1, sigs = [];
 let undoStack = [], redoStack = [], dirty = false, live = null, lastPen = 0, ready = null;
@@ -383,7 +383,10 @@ function move(e) {
   for (const ev of evs.length ? evs : [e]) {
     const x = (ev.clientX - live.r.left) * live.k, y = (ev.clientY - live.r.top) * live.k;
     const s = live.s;
-    if (st.tool === 'eraser') {
+    if (st.tool === 'eraser' && st.kind.eraser === 'free') {
+      const r = SIZES.eraser[st.size.eraser];
+      live.g.strokes = live.g.strokes.flatMap(o => erasePart(o, x, y, r) || [o]);
+    } else if (st.tool === 'eraser') {
       const keep = live.g.strokes.filter(o => !hit(o, x, y, ERASER_R, sizeFn));
       if (keep.length !== live.g.strokes.length) {
         const domGone = live.g.strokes.some(o => isDom(o) && !keep.includes(o));
@@ -855,7 +858,7 @@ function renderOpts() {
     else parts.push(swatches('text'), sizes('text'), hint('Tocca la pagina per scrivere'));
   }
   if (t === 'note') parts.push(hint('Tocca la pagina per aggiungere un commento'));
-  if (t === 'eraser') parts.push(hint('Passa sopra un elemento per cancellarlo'));
+  if (t === 'eraser') parts.push(kinds('eraser', [['item', 'Elementi'], ['free', 'Libera']]), ...(st.kind.eraser === 'free' ? [sizes('eraser'), hint('Cancella solo la parte di tratto su cui passi')] : [hint('Passa sopra un elemento per cancellarlo')]));
   if (t === 'stamp') {
     parts.push(el('div', { className: 'group' }, ...STAMPS.map(([label, color], i) => {
       const b = optBtn({ className: 'stamp-chip' }, st.stamp === i, () => { st.stamp = i; renderOpts(); }, label);

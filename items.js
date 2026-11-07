@@ -99,6 +99,19 @@ export function hit(o, x, y, tol, size) {
   return x > x0 - tol && x < x1 + tol && y > y0 - tol && y < y1 + tol;
 }
 
+export function erasePart(o, x, y, r) {
+  if (o.tool !== 'pen' && o.tool !== 'hl') return null;
+  const R = r + o.w / 2, parts = [];
+  let cur = [], cut = false;
+  for (const p of o.pts) {
+    if (Math.hypot(p[0] - x, p[1] - y) < R) { cut = true; if (cur.length) parts.push(cur); cur = []; }
+    else cur.push(p);
+  }
+  if (!cut) return null;
+  if (cur.length) parts.push(cur);
+  return parts.filter(p => p.length > 1).map(pts => ({ ...o, pts }));
+}
+
 export function mapItem(o, f, s) {
   const P = p => { const [x, y] = f(p); return p.length > 2 ? [x, y, p[2]] : [x, y]; };
   switch (o.tool) {
