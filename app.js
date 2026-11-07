@@ -813,7 +813,13 @@ function swatches(key, apply = c => { st.color[key] = c; renderOpts(); }, curren
     const dot = el('i');
     dot.style.setProperty('--c', c);
     return optBtn({ className: 'icon swatch', ariaLabel: 'Colore ' + (i + 1) }, c === current, () => apply(c), dot);
-  }));
+  }), customSwatch(COLORS[key].includes(current) ? null : current, apply));
+}
+
+function customSwatch(current, apply) {
+  const dot = el('i'), input = el('input', { type: 'color', ariaLabel: 'Altri colori', value: current || '#888888', onchange: e => apply(e.target.value) });
+  if (current) dot.style.setProperty('--c', current);
+  return el('label', { className: 'icon swatch custom' + (current ? ' on' : '') }, dot, input);
 }
 
 function sizes(key) {
