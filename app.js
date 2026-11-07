@@ -669,7 +669,7 @@ function sigThumb(sig) {
 
 const stylus = e => [...e.touches].some(t => t.touchType === 'stylus');
 viewer.addEventListener('touchstart', e => {
-  if (placing() || e.target.closest?.('.annot.note, .annot.editing, #notePop, .field')) return;
+  if (placing() || e.target.closest?.('.annot.note, .annot.editing, #notePop, .field, button, a, input, select, label, textarea')) return;
   if (stylus(e) || (st.finger && e.touches.length === 1) || Date.now() - lastPen < 500) e.preventDefault();
 }, { passive: false });
 viewer.addEventListener('touchmove', e => { if (stylus(e) || live) e.preventDefault(); }, { passive: false });

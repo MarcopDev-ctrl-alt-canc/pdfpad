@@ -361,3 +361,5 @@ button.ghost { background: var(--track); margin-top: 10px; font-weight: 600; }
 }
 #docFields .hint { white-space: normal; margin: 0; }
 @media (display-mode: standalone) { :root { --safe-top: max(24px, env(safe-area-inset-top)); } }
+button, select, label, input, a, summary, [role="button"] { touch-action: manipulation; }
+#top, #hud, button, label { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
