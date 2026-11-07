@@ -1,4 +1,4 @@
-const V = 'pdfpad-22';
+const V = 'pdfpad-23';
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {

@@ -232,7 +232,7 @@ function inkPath2D(o) {
   return p;
 }
 
-const OPAQUE = new Set(['cover', 'redact', 'image']);
+const onInk = o => o.tool === 'hl' || (o.tool === 'mark' && o.kind === 'hl');
 
 function paintInk(g) {
   const all = live?.g === g && live.s ? [...g.strokes, live.s] : g.strokes;
@@ -243,7 +243,7 @@ function paintInk(g) {
     if (!c.width) continue;
     const k = c.width / g.vp.width;
     ctx.setTransform(k, 0, 0, k, 0, 0);
-    for (const o of all) if (!isDom(o) && OPAQUE.has(o.tool) === (c === g.under)) paint(ctx, o, inkPath2D);
+    for (const o of all) if (!isDom(o) && onInk(o) !== (c === g.under)) paint(ctx, o, inkPath2D);
   }
 }
 
