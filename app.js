@@ -23,6 +23,7 @@ const COLORS = {
   sign: ['#111111', '#1d4ed8']
 };
 const SIZES = { pen: [1.2, 2.4, 4.5], hl: [8, 14, 22], text: [10, 14, 20], shape: [1, 2, 4], eraser: [4, 9, 18] };
+const NIB_W = { pen: 1, biro: 0.6, fountain: 1.5, marker: 2.8 };
 const ERASER_R = 8, SELECT_TOL = 6, STAMP_H = 34, SIG_W = 150;
 const MAX_CANVAS_PX = 12e6;
 const ZOOM_MIN = 0.5, ZOOM_MAX = 5;
@@ -46,7 +47,7 @@ const st = {
   tool: 'pen', zoom: 1, finger: false, sig: null, stamp: 0,
   color: Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, v[0]])),
   size: { pen: 1, hl: 1, text: 1, shape: 1, eraser: 1 },
-  kind: { shape: 'rect', mark: 'hl', text: 'new', eraser: 'item' }
+  kind: { shape: 'rect', mark: 'hl', text: 'new', eraser: 'item', pen: 'pen' }
 };
 let doc = null, bytes = null, fileName = '', pages = [], maxW = 1, sigs = [];
 let undoStack = [], redoStack = [], dirty = false, live = null, lastPen = 0, ready = null;
@@ -361,7 +362,8 @@ pagesEl.addEventListener('pointerdown', e => {
   const x = (e.clientX - r.left) * k, y = (e.clientY - r.top) * k;
   live = { g, id: e.pointerId, r, k, x0: x, y0: y, before: g.strokes.slice(), s: null };
   const t = st.tool;
-  if (t === 'pen' || t === 'hl') live.s = { tool: t, color: st.color[t], w: SIZES[t][st.size[t]], pts: [] };
+  if (t === 'hl') live.s = { tool: t, color: st.color[t], w: SIZES[t][st.size[t]], pts: [] };
+  else if (t === 'pen') live.s = { tool: t, nib: st.kind.pen, color: st.color[t], w: SIZES[t][st.size[t]] * NIB_W[st.kind.pen], pts: [] };
   else if (t === 'shape' && st.kind.shape === 'redact') live.s = { tool: 'redact', x, y, w: 0, h: 0 };
   else if (t === 'shape') live.s = { tool: 'shape', kind: st.kind.shape, color: st.color.shape, w: SIZES.shape[st.size.shape], x1: x, y1: y, x2: x, y2: y };
   else if (t === 'mark') {
@@ -844,6 +846,7 @@ function kinds(key, list) {
 function renderOpts() {
   if (search) return;
   const t = st.tool, parts = [];
+  if (t === 'pen') parts.push(kinds('pen', [['pen', 'Penna'], ['biro', 'Biro'], ['fountain', 'Stilografica'], ['marker', 'Pennarello']]));
   if (t === 'pen' || t === 'hl') parts.push(swatches(t), sizes(t));
   if (t === 'shape') {
     parts.push(kinds('shape', [['rect', 'Rettangolo', 'rect'], ['ellipse', 'Ellisse', 'ellipse'], ['line', 'Linea', 'line'], ['arrow', 'Freccia', 'arrow'], ['image', 'Immagine', 'image'], ['redact', 'Oscura', 'redact']]));

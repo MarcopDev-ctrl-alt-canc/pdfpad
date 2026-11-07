@@ -190,7 +190,7 @@ export function paint(ctx, o, path) {
 export function inkPath(o) {
   if (o.tool === 'hl') return hlPath(o.pts);
   if (o.tool === 'sig') return sigStrokes(o).map(s => penPath(s.pts, s.w)).join(' ');
-  return penPath(o.pts, o.w);
+  return penPath(o.pts, o.w, o.nib);
 }
 
 export function exportItem(page, o, E) {
@@ -206,7 +206,7 @@ export function exportItem(page, o, E) {
   };
   switch (o.tool) {
     case 'pen':
-      page.drawSvgPath(penPath(o.pts.map(P), o.w), { x: 0, y: 0, color: color(o.color) });
+      page.drawSvgPath(penPath(o.pts.map(P), o.w, o.nib), { x: 0, y: 0, color: color(o.color) });
       break;
     case 'sig':
       for (const s of sigStrokes(o)) page.drawSvgPath(penPath(s.pts.map(P), s.w), { x: 0, y: 0, color: color(o.color) });
